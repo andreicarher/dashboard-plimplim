@@ -30,7 +30,7 @@ interface InsightRow {
   businessLine: NavItem;
 }
 
-type RangePreset = '7' | '30' | '90';
+type RangePreset = '7' | '30' | '90' | 'custom';
 
 function presetToDates(preset: RangePreset) {
   const until = new Date();
@@ -40,10 +40,20 @@ function presetToDates(preset: RangePreset) {
   return { since: fmt(since), until: fmt(until) };
 }
 
+function todayStr() {
+  return new Date().toISOString().slice(0, 10);
+}
+
 const COLORS = ['#2E86DE', '#F7941D', '#ED1C24', '#1F9E8E', '#1B4F91', '#FDC500'];
 
 export default function Dashboard() {
   const [preset, setPreset] = useState<RangePreset>('30');
+  const [customSince, setCustomSince] = useState(() => {
+    const d = new Date();
+    d.setDate(d.getDate() - 30);
+    return d.toISOString().slice(0, 10);
+  });
+  const [customUntil, setCustomUntil] = useState(todayStr());
   const [activeNav, setActiveNav] = useState<NavItem>('Todos');
   const [rows, setRows] = useState<InsightRow[]>([]);
   const [arsToUsd, setArsToUsd] = useState<number | null>(null);
@@ -51,7 +61,9 @@ export default function Dashboard() {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    const { since, until } = presetToDates(preset);
+    const { since, until } = preset === 'custom' ? { since: customSince, until: customUntil } : presetToDates(preset);
+    if (preset === 'custom' && (!since || !until || since > until)) return;
+
     setLoading(true);
     setError(null);
 
@@ -75,7 +87,7 @@ export default function Dashboard() {
       })
       .catch((err) => setError(err.message))
       .finally(() => setLoading(false));
-  }, [preset]);
+  }, [preset, customSince, customUntil]);
 
   const filteredRows = useMemo(() => {
     if (activeNav === 'Todos') return rows;
@@ -160,20 +172,52 @@ export default function Dashboard() {
               Plim Plim · LATAM · datos en vivo desde Meta Ads · montos en ARS
             </p>
           </div>
-          <div className="flex gap-2">
-            {(['7', '30', '90'] as RangePreset[]).map((p) => (
+          <div className="flex flex-col items-end gap-2">
+            <div className="flex gap-2">
+              {(['7', '30', '90'] as RangePreset[]).map((p) => (
+                <button
+                  key={p}
+                  onClick={() => setPreset(p)}
+                  className={`px-3 py-1.5 rounded-lg text-sm font-medium border transition ${
+                    preset === p
+                      ? 'bg-plimBlue text-white border-plimBlue'
+                      : 'bg-panel text-muted border-line hover:border-plimBlue'
+                  }`}
+                >
+                  {p} días
+                </button>
+              ))}
               <button
-                key={p}
-                onClick={() => setPreset(p)}
+                onClick={() => setPreset('custom')}
                 className={`px-3 py-1.5 rounded-lg text-sm font-medium border transition ${
-                  preset === p
+                  preset === 'custom'
                     ? 'bg-plimBlue text-white border-plimBlue'
                     : 'bg-panel text-muted border-line hover:border-plimBlue'
                 }`}
               >
-                {p} días
+                Personalizado
               </button>
-            ))}
+            </div>
+            {preset === 'custom' && (
+              <div className="flex items-center gap-2">
+                <input
+                  type="date"
+                  value={customSince}
+                  max={customUntil}
+                  onChange={(e) => setCustomSince(e.target.value)}
+                  className="px-2 py-1 rounded-lg border border-line bg-panel text-sm text-ink"
+                />
+                <span className="text-muted text-sm">a</span>
+                <input
+                  type="date"
+                  value={customUntil}
+                  min={customSince}
+                  max={todayStr()}
+                  onChange={(e) => setCustomUntil(e.target.value)}
+                  className="px-2 py-1 rounded-lg border border-line bg-panel text-sm text-ink"
+                />
+              </div>
+            )}
           </div>
         </header>
 

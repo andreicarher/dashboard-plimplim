@@ -71,7 +71,12 @@ const PREFIX_PATTERNS: Array<{ pattern: RegExp; country: CountryCode; label: str
 ];
 
 function stripAccents(input: string): string {
-  return input.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+  // Reemplaza guiones bajos y guiones por espacios ANTES de quitar acentos,
+  // porque en regex "_" cuenta como carácter de palabra: "pro_show" se lee
+  // como una sola palabra continua y \bshow\b nunca encuentra el límite.
+  // Con el guion bajo convertido a espacio, "pro show" sí separa las palabras.
+  const withSpaces = input.replace(/[_-]+/g, ' ');
+  return withSpaces.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
 }
 
 export function classifyCountry(campaignName: string): CountryMatch {
@@ -98,7 +103,7 @@ export function classifyBusinessLine(campaignName: string): BusinessLine {
   const normalized = stripAccents(campaignName.toLowerCase());
 
   // Canal WA: WhatsApp channel growth campaigns.
-  if (/canal\s*wa|whats\s*app|whatsapp/.test(normalized)) return 'Canal WA';
+  if (/canal\s*wa\b|whats\s*app|whatsapp|\bwhats\b/.test(normalized)) return 'Canal WA';
 
   // App: "A Jugar con Plim Plim" install campaigns.
   if (/nueva\s*app|a jugar con plim plim|\bapp\b/.test(normalized)) return 'App';
