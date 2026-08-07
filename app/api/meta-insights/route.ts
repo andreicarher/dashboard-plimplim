@@ -34,7 +34,7 @@ export async function GET(req: NextRequest) {
         appInstalls: getActionValue(row, 'omni_app_install'),
         country: classified.country.countryLabel,
         countryConfidence: classified.country.confidence,
-        objective: classified.objective,
+        businessLine: classified.businessLine,
       };
     });
 

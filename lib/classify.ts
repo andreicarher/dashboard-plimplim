@@ -92,22 +92,31 @@ export function classifyCountry(campaignName: string): CountryMatch {
   return { country: 'SIN_CLASIFICAR', countryLabel: 'Sin clasificar', confidence: 'low' };
 }
 
-export type ObjectiveBucket = 'Show' | 'Nueva App' | 'Canal WA' | 'Otro / Sin clasificar';
+export type BusinessLine = 'Shows' | 'App' | 'Canal WA' | 'Campañas Temporada';
 
-export function classifyObjective(campaignName: string): ObjectiveBucket {
+export function classifyBusinessLine(campaignName: string): BusinessLine {
   const normalized = stripAccents(campaignName.toLowerCase());
 
+  // Canal WA: WhatsApp channel growth campaigns.
   if (/canal\s*wa|whats\s*app|whatsapp/.test(normalized)) return 'Canal WA';
-  if (/nueva\s*app|a jugar con plim plim|\bapp\b/.test(normalized)) return 'Nueva App';
-  if (/\bshow\b/.test(normalized)) return 'Show';
-  return 'Otro / Sin clasificar';
+
+  // App: "A Jugar con Plim Plim" install campaigns.
+  if (/nueva\s*app|a jugar con plim plim|\bapp\b/.test(normalized)) return 'App';
+
+  // Shows: live event ticket sales campaigns.
+  if (/\bshow\b/.test(normalized)) return 'Shows';
+
+  // Todo lo demás es contenido de temporada/oportunista: Halloween, Navidad,
+  // Latin Grammys, eventos puntuales, saludos, interacción de página, etc.
+  // Se agrupa aquí en vez de forzarlo a Shows/App/Canal WA.
+  return 'Campañas Temporada';
 }
 
 export interface ClassifiedCampaign {
   id: string;
   name: string;
   country: CountryMatch;
-  objective: ObjectiveBucket;
+  businessLine: BusinessLine;
 }
 
 export function classifyCampaign(id: string, name: string): ClassifiedCampaign {
@@ -115,6 +124,6 @@ export function classifyCampaign(id: string, name: string): ClassifiedCampaign {
     id,
     name,
     country: classifyCountry(name),
-    objective: classifyObjective(name),
+    businessLine: classifyBusinessLine(name),
   };
 }
