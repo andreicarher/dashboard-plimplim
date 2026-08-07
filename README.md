@@ -76,6 +76,57 @@ components/
   KpiCard.tsx / CountryTable.tsx → piezas de UI
 ```
 
+## Setup de Google Analytics 4
+
+El dashboard trae métricas de GA4 vía el **Reporting API estándar** (`runReport`), no el
+Realtime API — el Realtime de GA4 solo soporta 3-4 métricas (usuarios activos, vistas, eventos)
+sobre los últimos 30 minutos. El resto de las métricas pedidas (bounce rate, sessions, purchase
+revenue, first time purchasers, etc.) no existen en Realtime, así que este dashboard usa datos
+intradía (procesados en un plazo de horas, no al instante) para poder traer el set completo.
+
+Pasos para conectar tu propiedad de GA4:
+
+1. **Crear una cuenta de servicio en Google Cloud**:
+   - Ve a [console.cloud.google.com](https://console.cloud.google.com) → crea un proyecto (o usa uno existente)
+   - Habilita la **Google Analytics Data API** (Library → busca "Analytics Data API" → Enable)
+   - Ve a **IAM & Admin → Service Accounts → Create Service Account**
+   - Dale un nombre (ej. `plimplim-dashboard`), no necesita roles de Cloud
+   - Una vez creada, entra a la cuenta de servicio → **Keys → Add key → Create new key → JSON**
+   - Se descarga un archivo `.json` — de ahí sacas `client_email` y `private_key`
+
+2. **Dar acceso a la propiedad de GA4**:
+   - En Google Analytics → Admin → **Property Access Management**
+   - Add users → pega el email de la cuenta de servicio (el que termina en `.iam.gserviceaccount.com`)
+   - Rol: **Viewer** (alcanza, es solo lectura)
+
+3. **Variables de entorno** (local y en Vercel):
+   - `GA4_PROPERTY_ID`: el ID numérico de tu propiedad (Admin → Property Settings)
+   - `GA4_CLIENT_EMAIL`: el `client_email` del JSON descargado
+   - `GA4_PRIVATE_KEY`: el `private_key` del JSON, completo (incluye `-----BEGIN PRIVATE KEY-----`).
+     En Vercel, pégalo tal cual con los `\n` literales — la librería los convierte automáticamente.
+
+Si GA4 no responde, el dashboard sigue funcionando igual con los datos de Meta — solo muestra un
+aviso con el mensaje de error en vez del panel de GA4.
+
+## Métricas por línea de negocio
+
+Las tarjetas de KPI cambian según qué línea de negocio tienes seleccionada en el sidebar:
+
+- **App**: Inversión, Alcance, Descargas, Compras en la app, Valor de las compras, ROAS
+- **Shows**: Inversión ARS, Inversión USD, Alcance, Impresiones, Frecuencia, CPM ARS, CPM USD, Clics, CTR, Landing page views, Compras
+- **Canal WA**: Inversión, Alcance, Impresiones, CPM, CTR, Frecuencia, Visitas a la página
+- **Campañas Temporada / Todos**: Inversión, Alcance, Impresiones, CPM, CTR, Frecuencia
+
+**Nota sobre CTR, CPM y Frecuencia**: se calculan a partir de las sumas crudas (spend, impresiones,
+clicks, reach) después de agregar todas las campañas y semanas — nunca promediando promedios ya
+calculados. Promediar un CTR semanal con otro CTR semanal da un número distinto (y menos preciso)
+que recalcularlo desde los totales.
+
+**Nota sobre Alcance (reach)**: Meta no expone un "alcance único" deduplicado cuando se suman
+múltiples campañas o semanas — el número que ves es la suma de alcances por campaña/semana, así
+que una misma persona alcanzada por dos campañas distintas puede contarse más de una vez. Es una
+métrica direccional, no un conteo de personas únicas reales.
+
 ## Próximos pasos sugeridos
 
 - Agregar breakdown por semana ISO (ya tienes esa lógica en tu Sheet actual) usando

@@ -6,7 +6,9 @@ export interface MetaInsightRow {
   spend: string;
   impressions: string;
   clicks: string;
+  reach?: string;
   actions?: Array<{ action_type: string; value: string }>;
+  action_values?: Array<{ action_type: string; value: string }>;
   date_start: string;
   date_stop: string;
 }
@@ -35,9 +37,16 @@ export async function fetchMetaInsights(params: {
     );
   }
 
-  const fields = ['campaign_id', 'campaign_name', 'spend', 'impressions', 'clicks', 'actions'].join(
-    ','
-  );
+  const fields = [
+    'campaign_id',
+    'campaign_name',
+    'spend',
+    'impressions',
+    'clicks',
+    'reach',
+    'actions',
+    'action_values',
+  ].join(',');
 
   const url = new URL(`https://graph.facebook.com/${GRAPH_VERSION}/act_${accountId}/insights`);
   url.searchParams.set('fields', fields);
@@ -68,5 +77,11 @@ export async function fetchMetaInsights(params: {
 /** Extrae el valor de un action_type específico (ej. purchase, app installs) de la lista de actions. */
 export function getActionValue(row: MetaInsightRow, actionType: string): number {
   const match = row.actions?.find((a) => a.action_type === actionType);
+  return match ? parseFloat(match.value) : 0;
+}
+
+/** Extrae el monto monetario (no el conteo) de un action_type desde action_values. Útil para ROAS. */
+export function getActionMonetaryValue(row: MetaInsightRow, actionType: string): number {
+  const match = row.action_values?.find((a) => a.action_type === actionType);
   return match ? parseFloat(match.value) : 0;
 }

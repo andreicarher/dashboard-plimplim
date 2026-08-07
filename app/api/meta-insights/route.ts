@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { fetchMetaInsights, getActionValue } from '@/lib/metaApi';
+import { fetchMetaInsights, getActionValue, getActionMonetaryValue } from '@/lib/metaApi';
 import { classifyCampaign } from '@/lib/classify';
 
 // Fuerza ejecución dinámica: cada request pega en vivo a la API de Meta, sin caché.
@@ -20,6 +20,9 @@ export async function GET(req: NextRequest) {
   try {
     const rows = await fetchMetaInsights({ since, until });
 
+    // IMPORTANTE: devolvemos valores CRUDOS (sumas), no promedios (CTR, CPM, frecuencia).
+    // Promediar promedios de distintas semanas/campañas da un número incorrecto.
+    // El cliente suma spend/impressions/clicks/reach y RECIÉN AHÍ deriva CTR, CPM y frecuencia.
     const enriched = rows.map((row) => {
       const classified = classifyCampaign(row.campaign_id, row.campaign_name);
       return {
@@ -30,8 +33,11 @@ export async function GET(req: NextRequest) {
         spend: parseFloat(row.spend || '0'),
         impressions: parseInt(row.impressions || '0', 10),
         clicks: parseInt(row.clicks || '0', 10),
+        reach: parseInt(row.reach || '0', 10),
         purchases: getActionValue(row, 'omni_purchase'),
+        purchaseValue: getActionMonetaryValue(row, 'omni_purchase'),
         appInstalls: getActionValue(row, 'omni_app_install'),
+        landingPageViews: getActionValue(row, 'landing_page_view'),
         country: classified.country.countryLabel,
         countryConfidence: classified.country.confidence,
         businessLine: classified.businessLine,

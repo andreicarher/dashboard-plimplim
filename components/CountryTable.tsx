@@ -9,7 +9,7 @@ interface RowData {
 }
 
 function fmtMoney(n: number) {
-  return n.toLocaleString('es-AR', { maximumFractionDigits: 0 });
+  return n.toLocaleString('es-AR', { style: 'currency', currency: 'ARS', maximumFractionDigits: 0 });
 }
 
 export default function CountryTable({ rows }: { rows: RowData[] }) {

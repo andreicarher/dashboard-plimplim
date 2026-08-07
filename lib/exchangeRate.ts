@@ -1,9 +1,10 @@
 /**
- * Tipo de cambio en vivo ARS -> USD, usando la API pública y gratuita de Frankfurter
- * (frankfurter.dev, datos del Banco Central Europeo). No requiere API key.
+ * Tipo de cambio en vivo ARS -> USD, usando open.er-api.com (gratuita, sin API key,
+ * cubre 160+ monedas incluyendo ARS). Frankfurter (la opción anterior) no incluye
+ * el peso argentino en su set de monedas soportadas, por eso se cambió de proveedor.
  */
 export async function fetchArsToUsdRate(): Promise<number> {
-  const res = await fetch('https://api.frankfurter.dev/v1/latest?base=USD&symbols=ARS', {
+  const res = await fetch('https://open.er-api.com/v6/latest/USD', {
     cache: 'no-store',
   });
 
@@ -15,9 +16,10 @@ export async function fetchArsToUsdRate(): Promise<number> {
   const usdToArs = json.rates?.ARS;
 
   if (!usdToArs || typeof usdToArs !== 'number') {
-    throw new Error('Respuesta inesperada del servicio de tipo de cambio');
+    throw new Error('La respuesta del servicio de tipo de cambio no incluyó ARS');
   }
 
   // Queremos ARS -> USD, que es el inverso de USD -> ARS.
   return 1 / usdToArs;
 }
+
