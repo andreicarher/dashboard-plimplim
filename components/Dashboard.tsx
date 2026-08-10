@@ -15,7 +15,7 @@ import KpiCard from './KpiCard';
 import CountryTable from './CountryTable';
 import Sidebar, { NavItem } from './Sidebar';
 import Ga4Panel from './Ga4Panel';
-import CountryView from './CountryView';
+import CityBreakdown from './CityBreakdown';
 
 interface InsightRow {
   campaignId: string;
@@ -387,16 +387,14 @@ export default function Dashboard() {
           </div>
         )}
 
-        {activeNav !== 'Por país' && unclassifiedCount > 0 && (
+        {unclassifiedCount > 0 && (
           <div className="mb-6 rounded-xl border border-plimOrange bg-plimOrange/10 text-ink px-4 py-3 text-sm">
             ⚠ Hay <strong>{unclassifiedCount}</strong> fila(s) de campaña sin clasificar por país. No
             se les asignó un país al azar — revisa el nombre de esas campañas en Meta Ads Manager.
           </div>
         )}
 
-        {activeNav === 'Por país' ? (
-          <CountryView since={dateRange.since} until={dateRange.until} />
-        ) : loading ? (
+        {loading ? (
           <p className="text-muted text-sm">Cargando datos en vivo desde Meta y GA4…</p>
         ) : filteredRows.length === 0 ? (
           <p className="text-muted text-sm">
@@ -443,6 +441,13 @@ export default function Dashboard() {
               <h2 className="text-sm font-semibold text-ink mb-4">Detalle por país y línea de negocio</h2>
               <CountryTable rows={byCountryBusinessLine} />
             </section>
+
+            <CityBreakdown
+              activeNav={activeNav}
+              since={dateRange.since}
+              until={dateRange.until}
+              arsToUsd={arsToUsd}
+            />
           </>
         )}
       </main>

@@ -62,6 +62,8 @@ export async function GET(req: NextRequest) {
         reach: parseInt(row.reach || '0', 10),
         purchases: getActionValue(row, 'omni_purchase'),
         purchaseValue: getActionMonetaryValue(row, 'omni_purchase'),
+        appInstalls: getActionValue(row, 'omni_app_install'),
+        landingPageViews: getActionValue(row, 'landing_page_view'),
       };
     });
 

@@ -2,7 +2,7 @@
 
 import Image from 'next/image';
 
-export type NavItem = 'Todos' | 'Shows' | 'App' | 'Canal WA' | 'Campañas Temporada' | 'Por país';
+export type NavItem = 'Todos' | 'Shows' | 'App' | 'Canal WA' | 'Campañas Temporada';
 
 const NAV_ITEMS: { key: NavItem; icon: string }[] = [
   { key: 'Todos', icon: '◆' },
@@ -11,8 +11,6 @@ const NAV_ITEMS: { key: NavItem; icon: string }[] = [
   { key: 'Canal WA', icon: '💬' },
   { key: 'Campañas Temporada', icon: '🎉' },
 ];
-
-const NAV_ITEMS_SECONDARY: { key: NavItem; icon: string }[] = [{ key: 'Por país', icon: '🌎' }];
 
 interface SidebarProps {
   active: NavItem;
@@ -40,25 +38,6 @@ export default function Sidebar({ active, onSelect }: SidebarProps) {
 
       <nav className="flex md:flex-col overflow-x-auto md:overflow-visible px-3 py-3 gap-1">
         {NAV_ITEMS.map((item) => (
-          <button
-            key={item.key}
-            onClick={() => onSelect(item.key)}
-            className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium whitespace-nowrap transition text-left ${
-              active === item.key
-                ? 'bg-plimYellow text-plimBlueDark'
-                : 'text-white/85 hover:bg-white/10'
-            }`}
-          >
-            <span className="text-base leading-none">{item.icon}</span>
-            {item.key}
-          </button>
-        ))}
-      </nav>
-
-      <div className="mx-3 border-t border-white/15" />
-
-      <nav className="flex md:flex-col overflow-x-auto md:overflow-visible px-3 py-3 gap-1">
-        {NAV_ITEMS_SECONDARY.map((item) => (
           <button
             key={item.key}
             onClick={() => onSelect(item.key)}
