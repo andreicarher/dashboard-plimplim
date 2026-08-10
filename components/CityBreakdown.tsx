@@ -12,6 +12,7 @@ interface AdsetRow {
   country: string;
   city: string | null;
   countryConfidence: 'high' | 'low';
+  status: string;
   spend: number;
   impressions: number;
   clicks: number;
@@ -43,6 +44,22 @@ function fmtPct(n: number) {
 }
 function fmtDec(n: number) {
   return n.toLocaleString('es-AR', { maximumFractionDigits: 2 });
+}
+
+const STATUS_LABELS: Record<string, { label: string; icon: string; className: string }> = {
+  ACTIVE: { label: 'Activo', icon: '🟢', className: 'text-teal' },
+  PAUSED: { label: 'Pausado', icon: '⏸', className: 'text-muted' },
+  ADSET_PAUSED: { label: 'Pausado (adset)', icon: '⏸', className: 'text-muted' },
+  CAMPAIGN_PAUSED: { label: 'Pausado (campaña)', icon: '⏸', className: 'text-muted' },
+  DELETED: { label: 'Eliminado', icon: '🗑', className: 'text-plimRed' },
+  ARCHIVED: { label: 'Archivado', icon: '📦', className: 'text-muted' },
+  PENDING_REVIEW: { label: 'En revisión', icon: '⏳', className: 'text-plimOrange' },
+  DISAPPROVED: { label: 'Rechazado', icon: '⛔', className: 'text-plimRed' },
+  WITH_ISSUES: { label: 'Con problemas', icon: '⚠️', className: 'text-plimOrange' },
+};
+
+function formatStatus(status: string) {
+  return STATUS_LABELS[status] || { label: status, icon: '•', className: 'text-muted' };
 }
 
 interface ColumnDef {
@@ -213,7 +230,7 @@ export default function CityBreakdown({ activeNav, since, until, arsToUsd }: Cit
   if (countries.length === 0) return null;
 
   return (
-    <section className="mt-8">
+    <section className="mb-8">
       <div className="flex items-center justify-between mb-4">
         <h2 className="text-sm font-semibold text-ink">Desglose por ciudad — Ad set</h2>
         <select
@@ -255,6 +272,7 @@ export default function CityBreakdown({ activeNav, since, until, arsToUsd }: Cit
               <tr className="bg-paper text-left text-muted uppercase text-xs tracking-wide">
                 <th className="px-4 py-3 font-medium whitespace-nowrap">Ciudad</th>
                 <th className="px-4 py-3 font-medium whitespace-nowrap">Ad set</th>
+                <th className="px-4 py-3 font-medium whitespace-nowrap">Estado</th>
                 {columns.map((c) => (
                   <th key={c.label} className="px-4 py-3 font-medium text-right whitespace-nowrap">
                     {c.label}
@@ -270,6 +288,16 @@ export default function CityBreakdown({ activeNav, since, until, arsToUsd }: Cit
                   </td>
                   <td className="px-4 py-3 text-muted font-mono text-xs whitespace-nowrap">
                     {r.adsetName}
+                  </td>
+                  <td className="px-4 py-3 whitespace-nowrap">
+                    {(() => {
+                      const s = formatStatus(r.status);
+                      return (
+                        <span className={`text-xs font-medium ${s.className}`}>
+                          {s.icon} {s.label}
+                        </span>
+                      );
+                    })()}
                   </td>
                   {columns.map((c) => (
                     <td key={c.label} className="px-4 py-3 text-right font-mono whitespace-nowrap">

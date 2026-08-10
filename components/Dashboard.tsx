@@ -381,6 +381,13 @@ export default function Dashboard() {
           </div>
         </header>
 
+        <CityBreakdown
+          activeNav={activeNav}
+          since={dateRange.since}
+          until={dateRange.until}
+          arsToUsd={arsToUsd}
+        />
+
         {error && (
           <div className="mb-6 rounded-xl border border-plimRed bg-plimRed/10 text-plimRed px-4 py-3 text-sm">
             {error}
@@ -441,13 +448,6 @@ export default function Dashboard() {
               <h2 className="text-sm font-semibold text-ink mb-4">Detalle por país y línea de negocio</h2>
               <CountryTable rows={byCountryBusinessLine} />
             </section>
-
-            <CityBreakdown
-              activeNav={activeNav}
-              since={dateRange.since}
-              until={dateRange.until}
-              arsToUsd={arsToUsd}
-            />
           </>
         )}
       </main>

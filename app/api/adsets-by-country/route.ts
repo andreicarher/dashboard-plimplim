@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { fetchMetaAdsetInsights, getActionValue, getActionMonetaryValue } from '@/lib/metaApi';
-import { fetchAdsetLocations } from '@/lib/adsetLocations';
+import { fetchMetaAdsetInsights, fetchAdsetStatuses, getActionValue, getActionMonetaryValue } from '@/lib/metaApi';
+import { fetchAdsetLocations, normalizeAdsetName } from '@/lib/adsetLocations';
 import { classifyCountry, classifyBusinessLine } from '@/lib/classify';
 
 export const dynamic = 'force-dynamic';
@@ -18,15 +18,16 @@ export async function GET(req: NextRequest) {
   }
 
   try {
-    const [rows, locations] = await Promise.all([
+    const [rows, locations, statuses] = await Promise.all([
       fetchMetaAdsetInsights({ since, until }),
       fetchAdsetLocations(),
+      fetchAdsetStatuses().catch(() => new Map<string, string>()),
     ]);
 
     let unmatchedCount = 0;
 
     const enriched = rows.map((row) => {
-      const location = locations.map.get(row.adset_name);
+      const location = locations.map.get(normalizeAdsetName(row.adset_name));
 
       let country: string;
       let city: string | null;
@@ -64,6 +65,7 @@ export async function GET(req: NextRequest) {
         purchaseValue: getActionMonetaryValue(row, 'omni_purchase'),
         appInstalls: getActionValue(row, 'omni_app_install'),
         landingPageViews: getActionValue(row, 'landing_page_view'),
+        status: statuses.get(row.adset_id) || 'DESCONOCIDO',
       };
     });
 

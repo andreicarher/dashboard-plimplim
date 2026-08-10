@@ -92,6 +92,20 @@ const COL_COUNTRY_CODE = 7;
 const COL_COUNTRY = 8;
 const COL_CITY = 9;
 
+/**
+ * Normaliza un nombre de adset antes de comparar: recorta espacios y fuerza
+ * forma Unicode NFC. Esto es NECESARIO porque el CSV exportado por Google
+ * Sheets y la respuesta de la API de Meta pueden representar el mismo
+ * carácter acentuado (ej. "ó") con secuencias de bytes Unicode distintas
+ * (NFC vs NFD) — visualmente idénticas, pero un "===" exacto falla en
+ * silencio. Sin esta normalización, adsets como
+ * "CHI_MF_24-55_FBIG_INT_Santiago_2dafunción" quedan sin match aunque
+ * estén correctamente en la planilla.
+ */
+export function normalizeAdsetName(name: string): string {
+  return name.trim().normalize('NFC');
+}
+
 export async function fetchAdsetLocations(): Promise<AdsetLocationsResult> {
   const url = process.env.ADSET_LOCATIONS_CSV_URL;
   if (!url) {
@@ -115,7 +129,7 @@ export async function fetchAdsetLocations(): Promise<AdsetLocationsResult> {
   const raw = new Map<string, AdsetLocation[]>();
 
   for (const cols of dataRows) {
-    const adsetName = (cols[COL_ADSET] || '').trim();
+    const adsetName = normalizeAdsetName(cols[COL_ADSET] || '');
     const countryCode = (cols[COL_COUNTRY_CODE] || '').trim();
     const country = (cols[COL_COUNTRY] || '').trim();
     const city = (cols[COL_CITY] || '').trim();

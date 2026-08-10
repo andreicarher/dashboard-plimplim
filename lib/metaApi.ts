@@ -165,3 +165,47 @@ export function getActionMonetaryValue(row: ActionsShape, actionType: string): n
   const match = row.action_values?.find((a) => a.action_type === actionType);
   return match ? parseFloat(match.value) : 0;
 }
+
+/**
+ * Trae el estado ACTUAL (no histórico) de cada ad set: ACTIVE, PAUSED, etc.
+ * Es un atributo de configuración, no una métrica de un rango de fechas —
+ * por eso viene de un endpoint distinto al de insights.
+ */
+export async function fetchAdsetStatuses(): Promise<Map<string, string>> {
+  const token = process.env.META_ACCESS_TOKEN;
+  const accountId = process.env.META_AD_ACCOUNT_ID;
+
+  if (!token || !accountId) {
+    throw new Error(
+      'Faltan META_ACCESS_TOKEN o META_AD_ACCOUNT_ID en las variables de entorno del servidor.'
+    );
+  }
+
+  const url = new URL(`https://graph.facebook.com/${GRAPH_VERSION}/act_${accountId}/adsets`);
+  url.searchParams.set('fields', 'id,effective_status');
+  url.searchParams.set('limit', '500');
+  url.searchParams.set('access_token', token);
+
+  const map = new Map<string, string>();
+  let nextUrl: string | null = url.toString();
+
+  while (nextUrl) {
+    const res = await fetch(nextUrl, { cache: 'no-store' });
+    const json: {
+      data: Array<{ id: string; effective_status: string }>;
+      paging?: { next?: string };
+      error?: { message: string; code: number };
+    } = await res.json();
+
+    if (json.error) {
+      throw new Error(`Meta API error (${json.error.code}): ${json.error.message}`);
+    }
+
+    for (const item of json.data || []) {
+      map.set(item.id, item.effective_status);
+    }
+    nextUrl = json.paging?.next || null;
+  }
+
+  return map;
+}
