@@ -19,7 +19,7 @@ interface SidebarProps {
 
 export default function Sidebar({ active, onSelect }: SidebarProps) {
   return (
-    <aside className="w-full md:w-60 shrink-0 bg-plimBlue md:min-h-screen md:sticky md:top-0">
+    <aside className="w-full md:w-60 shrink-0 bg-plimBlue md:min-h-screen md:sticky md:top-0 flex flex-col">
       <div className="flex items-center gap-3 px-5 py-6 border-b border-white/15">
         <div className="w-11 h-11 rounded-full overflow-hidden border-2 border-plimYellow shrink-0">
           <Image
@@ -52,6 +52,10 @@ export default function Sidebar({ active, onSelect }: SidebarProps) {
           </button>
         ))}
       </nav>
+
+      <div className="mt-auto px-5 py-3 text-[10px] text-white/40 font-mono">
+        v9 · 10 ago 18:15
+      </div>
     </aside>
   );
 }

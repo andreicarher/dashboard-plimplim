@@ -73,6 +73,7 @@ export async function GET(req: NextRequest) {
       data: enriched,
       unmatchedCount,
       conflicts: locations.conflicts,
+      locationsLoaded: locations.map.size,
     });
   } catch (err) {
     const message = err instanceof Error ? err.message : 'Error desconocido';

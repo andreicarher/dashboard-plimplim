@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import type { NavItem } from './Sidebar';
 
-interface AdsetRow {
+export interface AdsetRow {
   adsetId: string;
   adsetName: string;
   campaignId: string;
@@ -23,18 +23,13 @@ interface AdsetRow {
   landingPageViews: number;
 }
 
-interface Conflict {
-  adsetName: string;
-  entries: Array<{ countryCode: string; country: string; city: string }>;
-}
-
 function fmtArs(n: number) {
   return n.toLocaleString('es-AR', { style: 'currency', currency: 'ARS', maximumFractionDigits: 0 });
 }
 function fmtUsdVal(n: number, arsToUsd: number | null) {
   return arsToUsd
     ? (n * arsToUsd).toLocaleString('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 })
-    : '—';
+    : null;
 }
 function fmtInt(n: number) {
   return Math.round(n).toLocaleString('es-AR');
@@ -44,6 +39,17 @@ function fmtPct(n: number) {
 }
 function fmtDec(n: number) {
   return n.toLocaleString('es-AR', { maximumFractionDigits: 2 });
+}
+
+/** Celda combinada: monto en ARS arriba, equivalente en USD debajo en gris chico. */
+function CostCell({ ars, arsToUsd }: { ars: number; arsToUsd: number | null }) {
+  const usd = fmtUsdVal(ars, arsToUsd);
+  return (
+    <div className="flex flex-col items-end">
+      <span>{fmtArs(ars)}</span>
+      {usd && <span className="text-[10px] text-muted font-normal">≈ USD {usd}</span>}
+    </div>
+  );
 }
 
 const STATUS_LABELS: Record<string, { label: string; icon: string; className: string }> = {
@@ -64,23 +70,22 @@ function formatStatus(status: string) {
 
 interface ColumnDef {
   label: string;
-  render: (r: AdsetRow, arsToUsd: number | null) => string;
+  render: (r: AdsetRow, arsToUsd: number | null) => React.ReactNode;
 }
 
 /**
- * Columnas específicas por línea de negocio, calculadas por FILA (por ad set),
- * no agregadas — cada ratio (CTR, CPM, frecuencia, ROAS) se calcula desde los
- * valores crudos de ESE ad set puntual, así que no hay problema de promediar
- * promedios acá.
+ * Columnas específicas por línea de negocio, calculadas por FILA (por ad set).
+ * Las métricas de COSTO (Inversión, CPM) muestran ARS arriba y USD debajo en
+ * una sola columna combinada — nunca en columnas separadas.
  */
 function getColumns(businessLine: NavItem): ColumnDef[] {
   if (businessLine === 'App') {
     return [
-      { label: 'Inversión', render: (r) => fmtArs(r.spend) },
+      { label: 'Inversión', render: (r, usd) => <CostCell ars={r.spend} arsToUsd={usd} /> },
       { label: 'Alcance', render: (r) => fmtInt(r.reach) },
       { label: 'Descargas', render: (r) => fmtInt(r.appInstalls) },
       { label: 'Compras en la app', render: (r) => fmtInt(r.purchases) },
-      { label: 'Valor de compras', render: (r) => fmtArs(r.purchaseValue) },
+      { label: 'Valor de compras', render: (r, usd) => <CostCell ars={r.purchaseValue} arsToUsd={usd} /> },
       {
         label: 'ROAS',
         render: (r) => `${fmtDec(r.spend > 0 ? r.purchaseValue / r.spend : 0)}x`,
@@ -90,8 +95,7 @@ function getColumns(businessLine: NavItem): ColumnDef[] {
 
   if (businessLine === 'Shows') {
     return [
-      { label: 'Inversión ARS', render: (r) => fmtArs(r.spend) },
-      { label: 'Inversión USD', render: (r, usd) => fmtUsdVal(r.spend, usd) },
+      { label: 'Inversión', render: (r, usd) => <CostCell ars={r.spend} arsToUsd={usd} /> },
       { label: 'Alcance', render: (r) => fmtInt(r.reach) },
       { label: 'Impresiones', render: (r) => fmtInt(r.impressions) },
       {
@@ -99,12 +103,10 @@ function getColumns(businessLine: NavItem): ColumnDef[] {
         render: (r) => fmtDec(r.reach > 0 ? r.impressions / r.reach : 0),
       },
       {
-        label: 'CPM ARS',
-        render: (r) => fmtArs(r.impressions > 0 ? (r.spend / r.impressions) * 1000 : 0),
-      },
-      {
-        label: 'CPM USD',
-        render: (r, usd) => fmtUsdVal(r.impressions > 0 ? (r.spend / r.impressions) * 1000 : 0, usd),
+        label: 'CPM',
+        render: (r, usd) => (
+          <CostCell ars={r.impressions > 0 ? (r.spend / r.impressions) * 1000 : 0} arsToUsd={usd} />
+        ),
       },
       { label: 'Clics', render: (r) => fmtInt(r.clicks) },
       {
@@ -118,12 +120,14 @@ function getColumns(businessLine: NavItem): ColumnDef[] {
 
   if (businessLine === 'Canal WA') {
     return [
-      { label: 'Inversión', render: (r) => fmtArs(r.spend) },
+      { label: 'Inversión', render: (r, usd) => <CostCell ars={r.spend} arsToUsd={usd} /> },
       { label: 'Alcance', render: (r) => fmtInt(r.reach) },
       { label: 'Impresiones', render: (r) => fmtInt(r.impressions) },
       {
         label: 'CPM',
-        render: (r) => fmtArs(r.impressions > 0 ? (r.spend / r.impressions) * 1000 : 0),
+        render: (r, usd) => (
+          <CostCell ars={r.impressions > 0 ? (r.spend / r.impressions) * 1000 : 0} arsToUsd={usd} />
+        ),
       },
       {
         label: 'CTR',
@@ -139,12 +143,14 @@ function getColumns(businessLine: NavItem): ColumnDef[] {
 
   // Campañas Temporada
   return [
-    { label: 'Inversión', render: (r) => fmtArs(r.spend) },
+    { label: 'Inversión', render: (r, usd) => <CostCell ars={r.spend} arsToUsd={usd} /> },
     { label: 'Alcance', render: (r) => fmtInt(r.reach) },
     { label: 'Impresiones', render: (r) => fmtInt(r.impressions) },
     {
       label: 'CPM',
-      render: (r) => fmtArs(r.impressions > 0 ? (r.spend / r.impressions) * 1000 : 0),
+      render: (r, usd) => (
+        <CostCell ars={r.impressions > 0 ? (r.spend / r.impressions) * 1000 : 0} arsToUsd={usd} />
+      ),
     },
     {
       label: 'CTR',
@@ -159,36 +165,28 @@ function getColumns(businessLine: NavItem): ColumnDef[] {
 
 interface CityBreakdownProps {
   activeNav: NavItem;
-  since: string;
-  until: string;
   arsToUsd: number | null;
+  rows: AdsetRow[];
+  conflictsCount: number;
+  unmatchedCount: number;
+  locationsLoaded: number | null;
+  loading: boolean;
+  error: string | null;
 }
 
-export default function CityBreakdown({ activeNav, since, until, arsToUsd }: CityBreakdownProps) {
-  const [rows, setRows] = useState<AdsetRow[]>([]);
-  const [conflicts, setConflicts] = useState<Conflict[]>([]);
-  const [unmatchedCount, setUnmatchedCount] = useState(0);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+export default function CityBreakdown({
+  activeNav,
+  arsToUsd,
+  rows,
+  conflictsCount,
+  unmatchedCount,
+  locationsLoaded,
+  loading,
+  error,
+}: CityBreakdownProps) {
   const [selectedCountry, setSelectedCountry] = useState<string>('');
+  const [selectedCity, setSelectedCity] = useState<string>('');
 
-  useEffect(() => {
-    setLoading(true);
-    setError(null);
-
-    fetch(`/api/adsets-by-country?since=${since}&until=${until}`)
-      .then(async (res) => {
-        const json = await res.json();
-        if (!res.ok) throw new Error(json.error || 'Error al traer el desglose por ciudad');
-        setRows(json.data);
-        setConflicts(json.conflicts || []);
-        setUnmatchedCount(json.unmatchedCount || 0);
-      })
-      .catch((err) => setError(err.message))
-      .finally(() => setLoading(false));
-  }, [since, until]);
-
-  // Si estamos en "Todos" no filtramos por línea de negocio; si no, sí.
   const scopedRows = useMemo(
     () => (activeNav === 'Todos' ? rows : rows.filter((r) => r.businessLine === activeNav)),
     [rows, activeNav]
@@ -199,7 +197,6 @@ export default function CityBreakdown({ activeNav, since, until, arsToUsd }: Cit
     return Array.from(set).sort();
   }, [scopedRows]);
 
-  // Al cambiar de vista, si el país seleccionado ya no existe en esta línea de negocio, se resetea.
   useEffect(() => {
     if (selectedCountry && !countries.includes(selectedCountry)) {
       setSelectedCountry('');
@@ -207,16 +204,32 @@ export default function CityBreakdown({ activeNav, since, until, arsToUsd }: Cit
   }, [countries, selectedCountry]);
 
   const countryRows = useMemo(
-    () => scopedRows.filter((r) => r.country === selectedCountry).sort((a, b) => b.spend - a.spend),
+    () => scopedRows.filter((r) => r.country === selectedCountry),
     [scopedRows, selectedCountry]
   );
+
+  const cities = useMemo(() => {
+    const set = new Set(countryRows.map((r) => r.city || 'Sin match'));
+    return Array.from(set).sort();
+  }, [countryRows]);
+
+  useEffect(() => {
+    setSelectedCity('');
+  }, [selectedCountry]);
+
+  const displayRows = useMemo(() => {
+    const filtered = selectedCity
+      ? countryRows.filter((r) => (r.city || 'Sin match') === selectedCity)
+      : countryRows;
+    return filtered.sort((a, b) => b.spend - a.spend);
+  }, [countryRows, selectedCity]);
 
   const columns = useMemo(() => getColumns(activeNav), [activeNav]);
 
   if (loading) return null;
   if (error) {
     return (
-      <div className="mt-8 rounded-xl border border-plimRed bg-plimRed/10 text-plimRed px-4 py-3 text-sm">
+      <div className="mb-8 rounded-xl border border-plimRed bg-plimRed/10 text-plimRed px-4 py-3 text-sm">
         No se pudo cargar el desglose por ciudad: {error}
         {error.includes('ADSET_LOCATIONS_CSV_URL') && (
           <p className="mt-2 text-ink">
@@ -231,25 +244,51 @@ export default function CityBreakdown({ activeNav, since, until, arsToUsd }: Cit
 
   return (
     <section className="mb-8">
-      <div className="flex items-center justify-between mb-4">
-        <h2 className="text-sm font-semibold text-ink">Desglose por ciudad — Ad set</h2>
-        <select
-          value={selectedCountry}
-          onChange={(e) => setSelectedCountry(e.target.value)}
-          className="px-3 py-2 rounded-lg border border-line bg-panel text-ink text-sm"
-        >
-          <option value="">Elegir país…</option>
-          {countries.map((c) => (
-            <option key={c} value={c}>
-              {c}
-            </option>
-          ))}
-        </select>
+      <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
+        <h2 className="text-sm font-semibold text-ink">Desglose por país y ciudad — Ad set</h2>
+        <div className="flex gap-2">
+          <select
+            value={selectedCountry}
+            onChange={(e) => setSelectedCountry(e.target.value)}
+            className="px-3 py-2 rounded-lg border border-line bg-panel text-ink text-sm"
+          >
+            <option value="">Elegir país…</option>
+            {countries.map((c) => (
+              <option key={c} value={c}>
+                {c}
+              </option>
+            ))}
+          </select>
+          {selectedCountry && (
+            <select
+              value={selectedCity}
+              onChange={(e) => setSelectedCity(e.target.value)}
+              className="px-3 py-2 rounded-lg border border-line bg-panel text-ink text-sm"
+            >
+              <option value="">Todas las ciudades</option>
+              {cities.map((c) => (
+                <option key={c} value={c}>
+                  {c}
+                </option>
+              ))}
+            </select>
+          )}
+        </div>
       </div>
 
-      {conflicts.length > 0 && (
+      {/* Diagnóstico: cuántas entradas de la planilla de ciudades se cargaron realmente. */}
+      <div className="mb-4 text-xs text-muted">
+        📋 Planilla de ciudades:{' '}
+        {locationsLoaded === null
+          ? 'no se pudo leer'
+          : locationsLoaded === 0
+          ? '0 entradas cargadas — revisar ADSET_LOCATIONS_CSV_URL'
+          : `${locationsLoaded} ad sets mapeados`}
+      </div>
+
+      {conflictsCount > 0 && (
         <div className="mb-4 rounded-xl border border-plimOrange bg-plimOrange/10 text-ink px-4 py-3 text-sm">
-          ⚠ <strong>{conflicts.length}</strong> adset(s) tienen país/ciudad inconsistente en la
+          ⚠ <strong>{conflictsCount}</strong> adset(s) tienen país/ciudad inconsistente en la
           planilla de mapeo — revísalos cuando puedas.
         </div>
       )}
@@ -263,8 +302,8 @@ export default function CityBreakdown({ activeNav, since, until, arsToUsd }: Cit
 
       {!selectedCountry ? (
         <p className="text-muted text-sm">Elegí un país arriba para ver el desglose por ciudad.</p>
-      ) : countryRows.length === 0 ? (
-        <p className="text-muted text-sm">No hay ad sets de {selectedCountry} en este rango.</p>
+      ) : displayRows.length === 0 ? (
+        <p className="text-muted text-sm">No hay ad sets en este rango con ese filtro.</p>
       ) : (
         <div className="bg-panel rounded-xl border border-line overflow-x-auto">
           <table className="w-full text-sm">
@@ -281,7 +320,7 @@ export default function CityBreakdown({ activeNav, since, until, arsToUsd }: Cit
               </tr>
             </thead>
             <tbody>
-              {countryRows.map((r) => (
+              {displayRows.map((r) => (
                 <tr key={r.adsetId} className="border-t border-line">
                   <td className="px-4 py-3 font-medium whitespace-nowrap">
                     {r.city || <span className="text-plimOrange">Sin match</span>}

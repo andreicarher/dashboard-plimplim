@@ -15,7 +15,8 @@ import KpiCard from './KpiCard';
 import CountryTable from './CountryTable';
 import Sidebar, { NavItem } from './Sidebar';
 import Ga4Panel from './Ga4Panel';
-import CityBreakdown from './CityBreakdown';
+import CityBreakdown, { AdsetRow } from './CityBreakdown';
+import TopAdsets from './TopAdsets';
 
 interface InsightRow {
   campaignId: string;
@@ -119,6 +120,21 @@ function computeTotals(rows: InsightRow[]): Totals {
   return { ...sums, ctr, cpm, frequency, roas };
 }
 
+function fmtArs(n: number) {
+  return n.toLocaleString('es-AR', { style: 'currency', currency: 'ARS', maximumFractionDigits: 0 });
+}
+
+/** Tooltip del gráfico de barras, formateado como moneda ARS en vez del número crudo. */
+function ChartTooltip({ active, payload, label }: any) {
+  if (!active || !payload || !payload.length) return null;
+  return (
+    <div className="bg-panel border border-line rounded-lg px-3 py-2 text-sm shadow">
+      <p className="font-medium text-ink">{label}</p>
+      <p className="font-mono text-plimBlue">{fmtArs(payload[0].value)}</p>
+    </div>
+  );
+}
+
 export default function Dashboard() {
   const [preset, setPreset] = useState<RangePreset>('30');
   const [customSince, setCustomSince] = useState(() => {
@@ -135,6 +151,16 @@ export default function Dashboard() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  // Datos a nivel AD SET (con país/ciudad cruzados desde la planilla) — se
+  // comparten entre el gráfico "Gasto por país", el desglose por ciudad y el
+  // ranking de mejores ad sets, para no repetir el fetch tres veces.
+  const [adsetRows, setAdsetRows] = useState<AdsetRow[]>([]);
+  const [adsetsConflicts, setAdsetsConflicts] = useState(0);
+  const [adsetsUnmatched, setAdsetsUnmatched] = useState(0);
+  const [locationsLoaded, setLocationsLoaded] = useState<number | null>(null);
+  const [adsetsLoading, setAdsetsLoading] = useState(true);
+  const [adsetsError, setAdsetsError] = useState<string | null>(null);
+
   const dateRange = useMemo(() => {
     return preset === 'custom' ? { since: customSince, until: customUntil } : presetToDates(preset);
   }, [preset, customSince, customUntil]);
@@ -146,6 +172,8 @@ export default function Dashboard() {
     setLoading(true);
     setError(null);
     setGa4Error(null);
+    setAdsetsLoading(true);
+    setAdsetsError(null);
 
     Promise.all([
       fetch(`/api/meta-insights?since=${since}&until=${until}`).then(async (res) => {
@@ -178,6 +206,18 @@ export default function Dashboard() {
       })
       .catch((err) => setError(err.message))
       .finally(() => setLoading(false));
+
+    fetch(`/api/adsets-by-country?since=${since}&until=${until}`)
+      .then(async (res) => {
+        const json = await res.json();
+        if (!res.ok) throw new Error(json.error || 'Error al traer el desglose por ad set');
+        setAdsetRows(json.data);
+        setAdsetsConflicts((json.conflicts || []).length);
+        setAdsetsUnmatched(json.unmatchedCount || 0);
+        setLocationsLoaded(typeof json.locationsLoaded === 'number' ? json.locationsLoaded : null);
+      })
+      .catch((err) => setAdsetsError(err.message))
+      .finally(() => setAdsetsLoading(false));
   }, [preset, customSince, customUntil]);
 
   const filteredRows = useMemo(() => {
@@ -195,8 +235,6 @@ export default function Dashboard() {
         businessLine: string;
         spend: number;
         clicks: number;
-        purchases: number;
-        appInstalls: number;
         lowConfidenceCount: number;
       }
     >();
@@ -208,14 +246,10 @@ export default function Dashboard() {
         businessLine: r.businessLine,
         spend: 0,
         clicks: 0,
-        purchases: 0,
-        appInstalls: 0,
         lowConfidenceCount: 0,
       };
       existing.spend += r.spend;
       existing.clicks += r.clicks;
-      existing.purchases += r.purchases;
-      existing.appInstalls += r.appInstalls;
       if (r.countryConfidence === 'low') existing.lowConfidenceCount += 1;
       map.set(key, existing);
     }
@@ -223,23 +257,28 @@ export default function Dashboard() {
     return Array.from(map.values()).sort((a, b) => b.spend - a.spend);
   }, [filteredRows]);
 
+  const filteredAdsetRows = useMemo(() => {
+    if (activeNav === 'Todos') return adsetRows;
+    return adsetRows.filter((r) => r.businessLine === activeNav);
+  }, [adsetRows, activeNav]);
+
+  // Gasto por país usando el país REAL por ad set (vía planilla), no el nombre
+  // de campaña. Esto es lo que permite desglosar campañas "RO_LATAM_..." en
+  // sus países reales en vez de agruparlas como "LATAM (consolidado)".
   const spendByCountry = useMemo(() => {
     const map = new Map<string, number>();
-    for (const r of filteredRows) {
+    for (const r of filteredAdsetRows) {
       map.set(r.country, (map.get(r.country) || 0) + r.spend);
     }
     return Array.from(map.entries())
       .map(([country, spend]) => ({ country, spend: Math.round(spend) }))
       .sort((a, b) => b.spend - a.spend);
-  }, [filteredRows]);
+  }, [filteredAdsetRows]);
 
   const unclassifiedCount = useMemo(
     () => filteredRows.filter((r) => r.country === 'Sin clasificar').length,
     [filteredRows]
   );
-
-  const fmtArs = (n: number) =>
-    n.toLocaleString('es-AR', { style: 'currency', currency: 'ARS', maximumFractionDigits: 0 });
 
   const fmtUsd = (arsAmount: number) =>
     arsToUsd
@@ -256,10 +295,10 @@ export default function Dashboard() {
 
   // Tarjetas de KPI específicas por línea de negocio, según lo pedido:
   // App: Inversión, Alcance, Descargas, Compras en la app, Valor de las compras, ROAS
-  // Shows: Inversión ARS, Inversión USD, Alcance, Impresiones, Frecuencia, CPM ARS, CPM USD,
+  // Shows: Inversión (ARS + USD debajo), Alcance, Impresiones, Frecuencia, CPM (ARS + USD debajo),
   //        Clics, CTR, Landing page views, Compras
-  // Canal WA ("Whats"): Inversión, Alcance, Impresiones, CPM, CTR, Frecuencia, Visitas a la página
-  // Campañas Temporada ("Otras") y Todos: Inversión, Alcance, Impresiones, CPM, CTR, Frecuencia
+  // Canal WA: Inversión, Alcance, Impresiones, CPM, CTR, Frecuencia, Visitas a la página
+  // Campañas Temporada y Todos: Inversión, Alcance, Impresiones, CPM, CTR, Frecuencia
   interface KpiCardSpec {
     label: string;
     value: string;
@@ -283,13 +322,11 @@ export default function Dashboard() {
 
     if (activeNav === 'Shows') {
       return [
-        { label: 'Inversión ARS', value: fmtArs(t.spend), accent: 'coral' },
-        { label: 'Inversión USD', value: fmtUsd(t.spend) || '—', accent: 'coral' },
+        { label: 'Inversión', value: fmtArs(t.spend), usdValue: fmtUsd(t.spend), accent: 'coral' },
         { label: 'Alcance', value: fmtInt(t.reach), accent: 'indigo' },
         { label: 'Impresiones', value: fmtInt(t.impressions), accent: 'indigo' },
         { label: 'Frecuencia', value: fmtDec(t.frequency), accent: 'indigo' },
-        { label: 'CPM ARS', value: fmtArs(t.cpm), accent: 'amber' },
-        { label: 'CPM USD', value: fmtUsd(t.cpm) || '—', accent: 'amber' },
+        { label: 'CPM', value: fmtArs(t.cpm), usdValue: fmtUsd(t.cpm), accent: 'amber' },
         { label: 'Clics', value: fmtInt(t.clicks), accent: 'indigo' },
         { label: 'CTR', value: fmtPct(t.ctr), accent: 'amber' },
         { label: 'Landing page views', value: fmtInt(t.landingPageViews), accent: 'teal' },
@@ -302,7 +339,7 @@ export default function Dashboard() {
         { label: 'Inversión', value: fmtArs(t.spend), usdValue: fmtUsd(t.spend), accent: 'coral' },
         { label: 'Alcance', value: fmtInt(t.reach), accent: 'indigo' },
         { label: 'Impresiones', value: fmtInt(t.impressions), accent: 'indigo' },
-        { label: 'CPM', value: fmtArs(t.cpm), accent: 'amber' },
+        { label: 'CPM', value: fmtArs(t.cpm), usdValue: fmtUsd(t.cpm), accent: 'amber' },
         { label: 'CTR', value: fmtPct(t.ctr), accent: 'amber' },
         { label: 'Frecuencia', value: fmtDec(t.frequency), accent: 'indigo' },
         { label: 'Visitas a la página', value: fmtInt(t.landingPageViews), accent: 'teal' },
@@ -314,7 +351,7 @@ export default function Dashboard() {
       { label: 'Inversión', value: fmtArs(t.spend), usdValue: fmtUsd(t.spend), accent: 'coral' },
       { label: 'Alcance', value: fmtInt(t.reach), accent: 'indigo' },
       { label: 'Impresiones', value: fmtInt(t.impressions), accent: 'indigo' },
-      { label: 'CPM', value: fmtArs(t.cpm), accent: 'amber' },
+      { label: 'CPM', value: fmtArs(t.cpm), usdValue: fmtUsd(t.cpm), accent: 'amber' },
       { label: 'CTR', value: fmtPct(t.ctr), accent: 'amber' },
       { label: 'Frecuencia', value: fmtDec(t.frequency), accent: 'indigo' },
     ];
@@ -383,10 +420,18 @@ export default function Dashboard() {
 
         <CityBreakdown
           activeNav={activeNav}
-          since={dateRange.since}
-          until={dateRange.until}
           arsToUsd={arsToUsd}
+          rows={adsetRows}
+          conflictsCount={adsetsConflicts}
+          unmatchedCount={adsetsUnmatched}
+          locationsLoaded={locationsLoaded}
+          loading={adsetsLoading}
+          error={adsetsError}
         />
+
+        {activeNav === 'Canal WA' && !adsetsLoading && !adsetsError && (
+          <TopAdsets rows={filteredAdsetRows} title="Mejores anuncios por ad set — Canal WA" />
+        )}
 
         {error && (
           <div className="mb-6 rounded-xl border border-plimRed bg-plimRed/10 text-plimRed px-4 py-3 text-sm">
@@ -434,7 +479,7 @@ export default function Dashboard() {
                     tick={{ fontSize: 12, fill: '#8A6D1F' }}
                     tickFormatter={(v) => `$${(v / 1000).toLocaleString('es-AR')}k`}
                   />
-                  <Tooltip />
+                  <Tooltip content={<ChartTooltip />} />
                   <Bar dataKey="spend" radius={[6, 6, 0, 0]}>
                     {spendByCountry.map((_, i) => (
                       <Cell key={i} fill={COLORS[i % COLORS.length]} />

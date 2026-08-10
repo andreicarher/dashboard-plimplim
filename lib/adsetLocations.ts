@@ -93,17 +93,25 @@ const COL_COUNTRY = 8;
 const COL_CITY = 9;
 
 /**
- * Normaliza un nombre de adset antes de comparar: recorta espacios y fuerza
- * forma Unicode NFC. Esto es NECESARIO porque el CSV exportado por Google
- * Sheets y la respuesta de la API de Meta pueden representar el mismo
- * carácter acentuado (ej. "ó") con secuencias de bytes Unicode distintas
- * (NFC vs NFD) — visualmente idénticas, pero un "===" exacto falla en
- * silencio. Sin esta normalización, adsets como
- * "CHI_MF_24-55_FBIG_INT_Santiago_2dafunción" quedan sin match aunque
- * estén correctamente en la planilla.
+ * Normaliza un nombre de adset antes de comparar. Aplica, en orden:
+ *   1) recortar espacios al inicio/final
+ *   2) colapsar espacios múltiples internos a uno solo
+ *   3) forma Unicode NFC (ver nota abajo)
+ *   4) mayúsculas (comparación case-insensitive)
+ *
+ * Por qué cada paso:
+ * - NFC: el CSV exportado por Google Sheets y la respuesta de la API de Meta
+ *   pueden representar el mismo carácter acentuado (ej. "ó") con secuencias de
+ *   bytes Unicode distintas (NFC vs NFD) — visualmente idénticas, pero un
+ *   "===" exacto falla en silencio.
+ * - Mayúsculas + espacios: para tolerar pequeñas inconsistencias de tipeo
+ *   entre la planilla (mantenida a mano) y el nombre real en Meta, sin
+ *   inventar ningún dato — solo evita que un espacio doble o una diferencia
+ *   de mayúscula/minúscula bloqueen un match que a simple vista es el mismo
+ *   ad set.
  */
 export function normalizeAdsetName(name: string): string {
-  return name.trim().normalize('NFC');
+  return name.trim().replace(/\s+/g, ' ').normalize('NFC').toUpperCase();
 }
 
 export async function fetchAdsetLocations(): Promise<AdsetLocationsResult> {
