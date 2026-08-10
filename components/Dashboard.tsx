@@ -158,6 +158,11 @@ export default function Dashboard() {
   const [adsetsConflicts, setAdsetsConflicts] = useState(0);
   const [adsetsUnmatched, setAdsetsUnmatched] = useState(0);
   const [locationsLoaded, setLocationsLoaded] = useState<number | null>(null);
+  const [locationsDebug, setLocationsDebug] = useState<{
+    rawRowCount: number;
+    headerPreview: string;
+    sampleDataRow: string;
+  } | null>(null);
   const [adsetsLoading, setAdsetsLoading] = useState(true);
   const [adsetsError, setAdsetsError] = useState<string | null>(null);
 
@@ -215,6 +220,7 @@ export default function Dashboard() {
         setAdsetsConflicts((json.conflicts || []).length);
         setAdsetsUnmatched(json.unmatchedCount || 0);
         setLocationsLoaded(typeof json.locationsLoaded === 'number' ? json.locationsLoaded : null);
+        setLocationsDebug(json.locationsDebug || null);
       })
       .catch((err) => setAdsetsError(err.message))
       .finally(() => setAdsetsLoading(false));
@@ -425,6 +431,7 @@ export default function Dashboard() {
           conflictsCount={adsetsConflicts}
           unmatchedCount={adsetsUnmatched}
           locationsLoaded={locationsLoaded}
+          locationsDebug={locationsDebug}
           loading={adsetsLoading}
           error={adsetsError}
         />

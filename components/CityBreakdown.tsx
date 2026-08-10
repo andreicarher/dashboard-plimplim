@@ -170,6 +170,7 @@ interface CityBreakdownProps {
   conflictsCount: number;
   unmatchedCount: number;
   locationsLoaded: number | null;
+  locationsDebug?: { rawRowCount: number; headerPreview: string; sampleDataRow: string } | null;
   loading: boolean;
   error: string | null;
 }
@@ -181,6 +182,7 @@ export default function CityBreakdown({
   conflictsCount,
   unmatchedCount,
   locationsLoaded,
+  locationsDebug,
   loading,
   error,
 }: CityBreakdownProps) {
@@ -285,6 +287,17 @@ export default function CityBreakdown({
           ? '0 entradas cargadas — revisar ADSET_LOCATIONS_CSV_URL'
           : `${locationsLoaded} ad sets mapeados`}
       </div>
+
+      {locationsLoaded === 0 && locationsDebug && (
+        <div className="mb-4 rounded-xl border border-plimRed bg-plimRed/10 text-ink px-4 py-3 text-xs font-mono whitespace-pre-wrap break-all">
+          <p className="font-sans font-semibold mb-2 text-plimRed">
+            Diagnóstico (temporal): esto es lo que realmente llegó del CSV publicado
+          </p>
+          <p>Filas de datos totales recibidas: {locationsDebug.rawRowCount}</p>
+          <p className="mt-1">Fila 1 (headers): {locationsDebug.headerPreview || '(vacío)'}</p>
+          <p className="mt-1">Fila 2 (primer dato): {locationsDebug.sampleDataRow || '(vacío)'}</p>
+        </div>
+      )}
 
       {conflictsCount > 0 && (
         <div className="mb-4 rounded-xl border border-plimOrange bg-plimOrange/10 text-ink px-4 py-3 text-sm">

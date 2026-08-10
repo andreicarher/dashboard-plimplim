@@ -54,7 +54,7 @@ export default function Sidebar({ active, onSelect }: SidebarProps) {
       </nav>
 
       <div className="mt-auto px-5 py-3 text-[10px] text-white/40 font-mono">
-        v9 · 10 ago 18:15
+        v10 · 10 ago 18:25
       </div>
     </aside>
   );

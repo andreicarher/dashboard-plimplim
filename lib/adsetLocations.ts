@@ -27,6 +27,11 @@ export interface AdsetLocationConflict {
 export interface AdsetLocationsResult {
   map: Map<string, AdsetLocation>;
   conflicts: AdsetLocationConflict[];
+  debug: {
+    rawRowCount: number;
+    headerPreview: string;
+    sampleDataRow: string;
+  };
 }
 
 /** Parser CSV simple pero robusto a comillas, comas y saltos de línea embebidos. */
@@ -169,5 +174,13 @@ export async function fetchAdsetLocations(): Promise<AdsetLocationsResult> {
     }
   }
 
-  return { map, conflicts };
+  return {
+    map,
+    conflicts,
+    debug: {
+      rawRowCount: dataRows.length,
+      headerPreview: (rows[0] || []).slice(0, 12).join(' | '),
+      sampleDataRow: (dataRows[0] || []).slice(0, 12).join(' | '),
+    },
+  };
 }
