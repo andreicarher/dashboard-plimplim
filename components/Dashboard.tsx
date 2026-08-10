@@ -15,6 +15,7 @@ import KpiCard from './KpiCard';
 import CountryTable from './CountryTable';
 import Sidebar, { NavItem } from './Sidebar';
 import Ga4Panel from './Ga4Panel';
+import CountryView from './CountryView';
 
 interface InsightRow {
   campaignId: string;
@@ -134,9 +135,12 @@ export default function Dashboard() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  const dateRange = useMemo(() => {
+    return preset === 'custom' ? { since: customSince, until: customUntil } : presetToDates(preset);
+  }, [preset, customSince, customUntil]);
+
   useEffect(() => {
-    const { since, until } =
-      preset === 'custom' ? { since: customSince, until: customUntil } : presetToDates(preset);
+    const { since, until } = dateRange;
     if (preset === 'custom' && (!since || !until || since > until)) return;
 
     setLoading(true);
@@ -383,14 +387,16 @@ export default function Dashboard() {
           </div>
         )}
 
-        {unclassifiedCount > 0 && (
+        {activeNav !== 'Por país' && unclassifiedCount > 0 && (
           <div className="mb-6 rounded-xl border border-plimOrange bg-plimOrange/10 text-ink px-4 py-3 text-sm">
             ⚠ Hay <strong>{unclassifiedCount}</strong> fila(s) de campaña sin clasificar por país. No
             se les asignó un país al azar — revisa el nombre de esas campañas en Meta Ads Manager.
           </div>
         )}
 
-        {loading ? (
+        {activeNav === 'Por país' ? (
+          <CountryView since={dateRange.since} until={dateRange.until} />
+        ) : loading ? (
           <p className="text-muted text-sm">Cargando datos en vivo desde Meta y GA4…</p>
         ) : filteredRows.length === 0 ? (
           <p className="text-muted text-sm">
