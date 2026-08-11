@@ -163,12 +163,16 @@ function getColumns(businessLine: NavItem): ColumnDef[] {
   ];
 }
 
+interface Conflict {
+  adsetName: string;
+  entries: Array<{ countryCode: string; country: string; city: string }>;
+}
+
 interface CityBreakdownProps {
   activeNav: NavItem;
   arsToUsd: number | null;
   rows: AdsetRow[];
-  conflictsCount: number;
-  unmatchedCount: number;
+  conflicts: Conflict[];
   locationsLoaded: number | null;
   locationsDebug?: { rawRowCount: number; headerPreview: string; sampleDataRow: string } | null;
   loading: boolean;
@@ -179,8 +183,7 @@ export default function CityBreakdown({
   activeNav,
   arsToUsd,
   rows,
-  conflictsCount,
-  unmatchedCount,
+  conflicts,
   locationsLoaded,
   locationsDebug,
   loading,
@@ -198,6 +201,8 @@ export default function CityBreakdown({
     const set = new Set(scopedRows.map((r) => r.country));
     return Array.from(set).sort();
   }, [scopedRows]);
+
+  const unmatchedRows = useMemo(() => scopedRows.filter((r) => !r.city), [scopedRows]);
 
   useEffect(() => {
     if (selectedCountry && !countries.includes(selectedCountry)) {
@@ -299,17 +304,35 @@ export default function CityBreakdown({
         </div>
       )}
 
-      {conflictsCount > 0 && (
+      {conflicts.length > 0 && (
         <div className="mb-4 rounded-xl border border-plimOrange bg-plimOrange/10 text-ink px-4 py-3 text-sm">
-          ⚠ <strong>{conflictsCount}</strong> adset(s) tienen país/ciudad inconsistente en la
-          planilla de mapeo — revísalos cuando puedas.
+          ⚠ <strong>{conflicts.length}</strong> adset(s) tienen país/ciudad inconsistente en la
+          planilla de mapeo:
+          <ul className="mt-2 list-disc list-inside space-y-1">
+            {conflicts.map((c) => (
+              <li key={c.adsetName}>
+                <span className="font-mono text-xs">{c.adsetName}</span> —{' '}
+                {c.entries.map((e) => `${e.country}/${e.city}`).join(' vs ')}
+              </li>
+            ))}
+          </ul>
         </div>
       )}
 
-      {unmatchedCount > 0 && (
+      {unmatchedRows.length > 0 && (
         <div className="mb-4 rounded-xl border border-plimOrange bg-plimOrange/10 text-ink px-4 py-3 text-sm">
-          ⚠ <strong>{unmatchedCount}</strong> ad set(s) sin match exacto en la planilla de ciudades
-          en el rango de fechas actual (país inferido por nombre, sin ciudad).
+          ⚠ <strong>{unmatchedRows.length}</strong> ad set(s) sin match exacto en la planilla de
+          ciudades (país inferido por nombre, sin ciudad):
+          <ul className="mt-2 list-disc list-inside space-y-1 max-h-40 overflow-y-auto">
+            {unmatchedRows.map((r) => (
+              <li key={r.adsetId} className="font-mono text-xs">
+                {r.adsetName}{' '}
+                <span className="font-sans text-muted">
+                  (campaña: {r.campaignName}, país inferido: {r.country})
+                </span>
+              </li>
+            ))}
+          </ul>
         </div>
       )}
 

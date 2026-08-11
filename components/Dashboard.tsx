@@ -155,7 +155,9 @@ export default function Dashboard() {
   // comparten entre el gráfico "Gasto por país", el desglose por ciudad y el
   // ranking de mejores ad sets, para no repetir el fetch tres veces.
   const [adsetRows, setAdsetRows] = useState<AdsetRow[]>([]);
-  const [adsetsConflicts, setAdsetsConflicts] = useState(0);
+  const [adsetsConflicts, setAdsetsConflicts] = useState<
+    Array<{ adsetName: string; entries: Array<{ countryCode: string; country: string; city: string }> }>
+  >([]);
   const [adsetsUnmatched, setAdsetsUnmatched] = useState(0);
   const [locationsLoaded, setLocationsLoaded] = useState<number | null>(null);
   const [locationsDebug, setLocationsDebug] = useState<{
@@ -221,7 +223,7 @@ export default function Dashboard() {
         const json = await res.json();
         if (!res.ok) throw new Error(json.error || 'Error al traer el desglose por ad set');
         setAdsetRows(json.data);
-        setAdsetsConflicts((json.conflicts || []).length);
+        setAdsetsConflicts(json.conflicts || []);
         setAdsetsUnmatched(json.unmatchedCount || 0);
         setLocationsLoaded(typeof json.locationsLoaded === 'number' ? json.locationsLoaded : null);
         setLocationsDebug(json.locationsDebug || null);
@@ -248,31 +250,37 @@ export default function Dashboard() {
 
   const totals = useMemo(() => computeTotals(filteredRows), [filteredRows]);
 
-  const byCountryBusinessLine = useMemo(() => {
+  const byCountry = useMemo(() => {
     const map = new Map<
       string,
       {
         country: string;
-        businessLine: string;
         spend: number;
+        reach: number;
+        impressions: number;
         clicks: number;
+        landingPageViews: number;
         lowConfidenceCount: number;
       }
     >();
 
     for (const r of filteredRows) {
-      const key = `${r.country}__${r.businessLine}`;
-      const existing = map.get(key) || {
+      const existing = map.get(r.country) || {
         country: r.country,
-        businessLine: r.businessLine,
         spend: 0,
+        reach: 0,
+        impressions: 0,
         clicks: 0,
+        landingPageViews: 0,
         lowConfidenceCount: 0,
       };
       existing.spend += r.spend;
+      existing.reach += r.reach;
+      existing.impressions += r.impressions;
       existing.clicks += r.clicks;
+      existing.landingPageViews += r.landingPageViews;
       if (r.countryConfidence === 'low') existing.lowConfidenceCount += 1;
-      map.set(key, existing);
+      map.set(r.country, existing);
     }
 
     return Array.from(map.values()).sort((a, b) => b.spend - a.spend);
@@ -475,8 +483,7 @@ export default function Dashboard() {
               activeNav={activeNav}
               arsToUsd={arsToUsd}
               rows={adsetRows}
-              conflictsCount={adsetsConflicts}
-              unmatchedCount={adsetsUnmatched}
+              conflicts={adsetsConflicts}
               locationsLoaded={locationsLoaded}
               locationsDebug={locationsDebug}
               loading={adsetsLoading}
@@ -517,8 +524,8 @@ export default function Dashboard() {
             </section>
 
             <section>
-              <h2 className="text-sm font-semibold text-ink mb-4">Detalle por país y línea de negocio</h2>
-              <CountryTable rows={byCountryBusinessLine} />
+              <h2 className="text-sm font-semibold text-ink mb-4">Detalle por país</h2>
+              <CountryTable rows={byCountry} arsToUsd={arsToUsd} />
             </section>
           </>
         )}
