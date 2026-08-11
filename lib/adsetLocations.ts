@@ -119,7 +119,18 @@ export function normalizeAdsetName(name: string): string {
   return name.trim().replace(/\s+/g, ' ').normalize('NFC').toUpperCase();
 }
 
+// Caché en memoria de muy corta duración. En Vercel, instancias serverless
+// "calientes" pueden atender varias requests seguidas — esto evita descargar
+// la misma planilla dos veces en la misma carga de página (una vez para
+// adsets-by-country, otra para ads-by-country).
+let cachedResult: { result: AdsetLocationsResult; fetchedAt: number } | null = null;
+const CACHE_TTL_MS = 60_000;
+
 export async function fetchAdsetLocations(): Promise<AdsetLocationsResult> {
+  if (cachedResult && Date.now() - cachedResult.fetchedAt < CACHE_TTL_MS) {
+    return cachedResult.result;
+  }
+
   const url = process.env.ADSET_LOCATIONS_CSV_URL;
   if (!url) {
     throw new Error(
@@ -174,7 +185,7 @@ export async function fetchAdsetLocations(): Promise<AdsetLocationsResult> {
     }
   }
 
-  return {
+  const result: AdsetLocationsResult = {
     map,
     conflicts,
     debug: {
@@ -183,4 +194,7 @@ export async function fetchAdsetLocations(): Promise<AdsetLocationsResult> {
       sampleDataRow: (dataRows[0] || []).slice(0, 12).join(' | '),
     },
   };
+
+  cachedResult = { result, fetchedAt: Date.now() };
+  return result;
 }

@@ -29,7 +29,9 @@ function getClient(): BetaAnalyticsDataClient {
   });
 }
 
-const MAIN_METRICS = [
+// GA4 permite máximo 10 métricas por consulta (nested request). Con 13 métricas
+// pedidas, hay que dividirlas en dos lotes y hacer dos llamadas a runReport.
+const MAIN_METRICS_BATCH_1 = [
   'activeUsers',
   'bounceRate',
   'engagedSessions',
@@ -40,10 +42,9 @@ const MAIN_METRICS = [
   'sessions',
   'sessionsPerUser',
   'totalUsers',
-  'firstTimePurchasers',
-  'totalPurchasers',
-  'purchaseRevenue',
 ];
+
+const MAIN_METRICS_BATCH_2 = ['firstTimePurchasers', 'totalPurchasers', 'purchaseRevenue'];
 
 const KEY_EVENTS = ['first_open', 'in_app_purchase', 'purchase'];
 
@@ -78,13 +79,26 @@ export async function fetchGa4Metrics(since: string, until: string): Promise<Ga4
   const [mainReport] = await client.runReport({
     property: `properties/${propertyId}`,
     dateRanges: [{ startDate: since, endDate: until }],
-    metrics: MAIN_METRICS.map((name) => ({ name })),
+    metrics: MAIN_METRICS_BATCH_1.map((name) => ({ name })),
   });
 
-  const mainRow = mainReport.rows?.[0];
+  const [batch2Report] = await client.runReport({
+    property: `properties/${propertyId}`,
+    dateRanges: [{ startDate: since, endDate: until }],
+    metrics: MAIN_METRICS_BATCH_2.map((name) => ({ name })),
+  });
+
+  const batch1Row = mainReport.rows?.[0];
+  const batch2Row = batch2Report.rows?.[0];
+
   const getMainValue = (metricName: string): number => {
-    const idx = MAIN_METRICS.indexOf(metricName);
-    const raw = mainRow?.metricValues?.[idx]?.value;
+    const idx1 = MAIN_METRICS_BATCH_1.indexOf(metricName);
+    if (idx1 !== -1) {
+      const raw = batch1Row?.metricValues?.[idx1]?.value;
+      return raw ? parseFloat(raw) : 0;
+    }
+    const idx2 = MAIN_METRICS_BATCH_2.indexOf(metricName);
+    const raw = batch2Row?.metricValues?.[idx2]?.value;
     return raw ? parseFloat(raw) : 0;
   };
 

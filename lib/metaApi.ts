@@ -20,7 +20,11 @@ interface MetaInsightsResponse {
 }
 
 /**
- * Trae insights a nivel campaña para un rango de fechas, con desagregado semanal (time_increment=7).
+ * Trae insights a nivel campaña para un rango de fechas, agregados como UN
+ * solo total por campaña (sin desglose semanal) — el frontend solo necesita
+ * los totales del rango, y pedir time_increment=7 multiplicaba la cantidad de
+ * filas devueltas (y por lo tanto los llamados paginados a Meta), lo cual
+ * contribuía a agotar el límite de peticiones de la app.
  * Requiere META_ACCESS_TOKEN y META_AD_ACCOUNT_ID en variables de entorno del servidor.
  * Esta función SOLO debe llamarse desde código server-side (API routes), nunca desde el cliente.
  */
@@ -51,7 +55,6 @@ export async function fetchMetaInsights(params: {
   const url = new URL(`https://graph.facebook.com/${GRAPH_VERSION}/act_${accountId}/insights`);
   url.searchParams.set('fields', fields);
   url.searchParams.set('level', 'campaign');
-  url.searchParams.set('time_increment', '7');
   url.searchParams.set('time_range', JSON.stringify({ since: params.since, until: params.until }));
   url.searchParams.set('limit', '500');
   url.searchParams.set('access_token', token);

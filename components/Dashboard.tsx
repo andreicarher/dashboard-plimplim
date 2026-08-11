@@ -231,6 +231,21 @@ export default function Dashboard() {
       .catch((err) => setAdsetsError(err.message))
       .finally(() => setAdsetsLoading(false));
 
+  }, [preset, customSince, customUntil]);
+
+  // Fetch de anuncios individuales SOLO cuando se está viendo Canal WA — es la
+  // llamada más pesada a Meta (nivel "ad", el más granular), y pedirla en cada
+  // carga sin importar la vista contribuía a agotar el límite de peticiones
+  // de la app. Solo se necesita para "Mejores anuncios", exclusivo de esa vista.
+  useEffect(() => {
+    if (activeNav !== 'Canal WA') {
+      setAdRows([]);
+      return;
+    }
+
+    const { since, until } = dateRange;
+    if (preset === 'custom' && (!since || !until || since > until)) return;
+
     setAdsLoading(true);
     setAdsError(null);
     fetch(`/api/ads-by-country?since=${since}&until=${until}`)
@@ -241,7 +256,7 @@ export default function Dashboard() {
       })
       .catch((err) => setAdsError(err.message))
       .finally(() => setAdsLoading(false));
-  }, [preset, customSince, customUntil]);
+  }, [activeNav, dateRange, preset]);
 
   const filteredRows = useMemo(() => {
     if (activeNav === 'Todos') return rows;
