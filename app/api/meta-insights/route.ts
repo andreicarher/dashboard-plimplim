@@ -23,8 +23,21 @@ export async function GET(req: NextRequest) {
     // IMPORTANTE: devolvemos valores CRUDOS (sumas), no promedios (CTR, CPM, frecuencia).
     // Promediar promedios de distintas semanas/campañas da un número incorrecto.
     // El cliente suma spend/impressions/clicks/reach y RECIÉN AHÍ deriva CTR, CPM y frecuencia.
+    const appActionTypesSeen = new Set<string>();
+
     const enriched = rows.map((row) => {
       const classified = classifyCampaign(row.campaign_id, row.campaign_name);
+
+      // Diagnóstico temporal: guardamos qué action_type reales trae Meta para
+      // campañas de App, porque "Descargas"/"Compras"/"Valor" dan 0 y puede ser
+      // que Meta use un nombre de evento distinto a 'omni_app_install'/'omni_purchase'
+      // para este ad account en particular (varía según cómo esté configurado el
+      // App Events / SDK de la app en Meta).
+      if (classified.businessLine === 'App') {
+        for (const a of row.actions || []) appActionTypesSeen.add(`actions: ${a.action_type}`);
+        for (const a of row.action_values || []) appActionTypesSeen.add(`action_values: ${a.action_type}`);
+      }
+
       return {
         campaignId: row.campaign_id,
         campaignName: row.campaign_name,
@@ -44,7 +57,10 @@ export async function GET(req: NextRequest) {
       };
     });
 
-    return NextResponse.json({ data: enriched });
+    return NextResponse.json({
+      data: enriched,
+      appActionTypesDebug: Array.from(appActionTypesSeen).sort(),
+    });
   } catch (err) {
     const message = err instanceof Error ? err.message : 'Error desconocido';
     return NextResponse.json({ error: message }, { status: 500 });

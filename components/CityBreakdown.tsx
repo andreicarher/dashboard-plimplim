@@ -83,13 +83,6 @@ function getColumns(businessLine: NavItem): ColumnDef[] {
     return [
       { label: 'Inversión', render: (r, usd) => <CostCell ars={r.spend} arsToUsd={usd} /> },
       { label: 'Alcance', render: (r) => fmtInt(r.reach) },
-      { label: 'Descargas', render: (r) => fmtInt(r.appInstalls) },
-      { label: 'Compras en la app', render: (r) => fmtInt(r.purchases) },
-      { label: 'Valor de compras', render: (r, usd) => <CostCell ars={r.purchaseValue} arsToUsd={usd} /> },
-      {
-        label: 'ROAS',
-        render: (r) => `${fmtDec(r.spend > 0 ? r.purchaseValue / r.spend : 0)}x`,
-      },
     ];
   }
 

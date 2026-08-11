@@ -359,13 +359,27 @@ export default function Dashboard() {
     const t = totals;
 
     if (activeNav === 'App') {
+      // Inversión y Alcance vienen de Meta (son métricas de entrega de la
+      // pauta). Descargas, compradores y valor de compras vienen de GA4 —
+      // porque son eventos de USO de la app en sí, y GA4/Firebase sí los está
+      // registrando correctamente (a diferencia de Meta, que para esta cuenta
+      // no trae action_type de instalación/compra en absoluto).
+      const ga4Installs = ga4?.keyEventsFirstOpen ?? 0;
+      const ga4InAppPurchases = ga4?.keyEventsInAppPurchase ?? 0;
+      const ga4Revenue = ga4?.purchaseRevenue ?? 0;
+      const ga4FirstTimePurchasers = ga4?.firstTimePurchasers ?? 0;
+      const ga4TotalPurchasers = ga4?.totalPurchasers ?? 0;
+      const roasGa4 = t.spend > 0 ? ga4Revenue / t.spend : 0;
+
       return [
         { label: 'Inversión', value: fmtArs(t.spend), usdValue: fmtUsd(t.spend), accent: 'coral' },
         { label: 'Alcance', value: fmtInt(t.reach), accent: 'indigo' },
-        { label: 'Descargas', value: fmtInt(t.appInstalls), accent: 'amber' },
-        { label: 'Compras en la app', value: fmtInt(t.purchases), accent: 'teal' },
-        { label: 'Valor de las compras', value: fmtArs(t.purchaseValue), usdValue: fmtUsd(t.purchaseValue), accent: 'teal' },
-        { label: 'ROAS', value: `${fmtDec(t.roas)}x`, accent: 'amber' },
+        { label: 'Descargas (first_open, GA4)', value: fmtInt(ga4Installs), accent: 'amber' },
+        { label: 'Compradores 1ra vez (GA4)', value: fmtInt(ga4FirstTimePurchasers), accent: 'teal' },
+        { label: 'Total de compradores (GA4)', value: fmtInt(ga4TotalPurchasers), accent: 'teal' },
+        { label: 'Compras en la app (GA4)', value: fmtInt(ga4InAppPurchases), accent: 'teal' },
+        { label: 'Valor de las compras (GA4)', value: fmtArs(ga4Revenue), usdValue: fmtUsd(ga4Revenue), accent: 'teal' },
+        { label: 'ROAS (GA4 revenue / Meta spend)', value: `${fmtDec(roasGa4)}x`, accent: 'amber' },
       ];
     }
 
@@ -404,7 +418,7 @@ export default function Dashboard() {
       { label: 'CTR', value: fmtPct(t.ctr), accent: 'amber' },
       { label: 'Frecuencia', value: fmtDec(t.frequency), accent: 'indigo' },
     ];
-  }, [totals, activeNav, arsToUsd]);
+  }, [totals, activeNav, arsToUsd, ga4]);
 
   return (
     <div className="flex flex-col md:flex-row min-h-screen bg-paper">
