@@ -444,22 +444,6 @@ export default function Dashboard() {
           </div>
         </header>
 
-        <CityBreakdown
-          activeNav={activeNav}
-          arsToUsd={arsToUsd}
-          rows={adsetRows}
-          conflictsCount={adsetsConflicts}
-          unmatchedCount={adsetsUnmatched}
-          locationsLoaded={locationsLoaded}
-          locationsDebug={locationsDebug}
-          loading={adsetsLoading}
-          error={adsetsError}
-        />
-
-        {activeNav === 'Canal WA' && !adsLoading && !adsError && (
-          <TopAdsets rows={filteredAdRows} title="Mejores anuncios — Canal WA" />
-        )}
-
         {error && (
           <div className="mb-6 rounded-xl border border-plimRed bg-plimRed/10 text-plimRed px-4 py-3 text-sm">
             {error}
@@ -486,6 +470,22 @@ export default function Dashboard() {
                 <KpiCard key={c.label} label={c.label} value={c.value} usdValue={c.usdValue} accent={c.accent} />
               ))}
             </section>
+
+            <CityBreakdown
+              activeNav={activeNav}
+              arsToUsd={arsToUsd}
+              rows={adsetRows}
+              conflictsCount={adsetsConflicts}
+              unmatchedCount={adsetsUnmatched}
+              locationsLoaded={locationsLoaded}
+              locationsDebug={locationsDebug}
+              loading={adsetsLoading}
+              error={adsetsError}
+            />
+
+            {activeNav === 'Canal WA' && !adsLoading && !adsError && (
+              <TopAdsets rows={filteredAdRows} title="Mejores anuncios — Canal WA" />
+            )}
 
             {ga4Error ? (
               <div className="mb-8 rounded-xl border border-plimOrange bg-plimOrange/10 text-ink px-4 py-3 text-sm">
