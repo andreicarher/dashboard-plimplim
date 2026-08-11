@@ -16,7 +16,7 @@ import CountryTable from './CountryTable';
 import Sidebar, { NavItem } from './Sidebar';
 import Ga4Panel from './Ga4Panel';
 import CityBreakdown, { AdsetRow } from './CityBreakdown';
-import TopAdsets from './TopAdsets';
+import TopAdsets, { AdRow } from './TopAdsets';
 
 interface InsightRow {
   campaignId: string;
@@ -166,6 +166,10 @@ export default function Dashboard() {
   const [adsetsLoading, setAdsetsLoading] = useState(true);
   const [adsetsError, setAdsetsError] = useState<string | null>(null);
 
+  const [adRows, setAdRows] = useState<AdRow[]>([]);
+  const [adsLoading, setAdsLoading] = useState(true);
+  const [adsError, setAdsError] = useState<string | null>(null);
+
   const dateRange = useMemo(() => {
     return preset === 'custom' ? { since: customSince, until: customUntil } : presetToDates(preset);
   }, [preset, customSince, customUntil]);
@@ -224,6 +228,17 @@ export default function Dashboard() {
       })
       .catch((err) => setAdsetsError(err.message))
       .finally(() => setAdsetsLoading(false));
+
+    setAdsLoading(true);
+    setAdsError(null);
+    fetch(`/api/ads-by-country?since=${since}&until=${until}`)
+      .then(async (res) => {
+        const json = await res.json();
+        if (!res.ok) throw new Error(json.error || 'Error al traer anuncios');
+        setAdRows(json.data);
+      })
+      .catch((err) => setAdsError(err.message))
+      .finally(() => setAdsLoading(false));
   }, [preset, customSince, customUntil]);
 
   const filteredRows = useMemo(() => {
@@ -267,6 +282,11 @@ export default function Dashboard() {
     if (activeNav === 'Todos') return adsetRows;
     return adsetRows.filter((r) => r.businessLine === activeNav);
   }, [adsetRows, activeNav]);
+
+  const filteredAdRows = useMemo(() => {
+    if (activeNav === 'Todos') return adRows;
+    return adRows.filter((r) => r.businessLine === activeNav);
+  }, [adRows, activeNav]);
 
   // Gasto por país usando el país REAL por ad set (vía planilla), no el nombre
   // de campaña. Esto es lo que permite desglosar campañas "RO_LATAM_..." en
@@ -436,8 +456,8 @@ export default function Dashboard() {
           error={adsetsError}
         />
 
-        {activeNav === 'Canal WA' && !adsetsLoading && !adsetsError && (
-          <TopAdsets rows={filteredAdsetRows} title="Mejores anuncios por ad set — Canal WA" />
+        {activeNav === 'Canal WA' && !adsLoading && !adsError && (
+          <TopAdsets rows={filteredAdRows} title="Mejores anuncios — Canal WA" />
         )}
 
         {error && (

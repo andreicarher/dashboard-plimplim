@@ -84,18 +84,18 @@ function parseCsv(text: string): string[][] {
 }
 
 /**
- * IMPORTANTE sobre las columnas: la hoja publicada tiene VARIAS tablas distintas
- * una junto a la otra (AdSet name/PAÍS en A-B, CAMPAÑA/OBJETIVO en D-E, código
- * país/nombre país en N-O), que NO corresponden fila por fila entre sí — son
- * listas independientes que coinciden por casualidad en la misma fila visual.
- * La tabla que realmente mapea ADSET -> país/ciudad vive específicamente en
- * las columnas G, H, I, J (índices 6, 7, 8, 9 empezando en 0). Cualquier otra
- * columna se ignora.
+ * IMPORTANTE sobre las columnas: confirmado con datos reales de producción
+ * (fila de headers "ADSET | código país | PAIS | CIUDAD" recibida tal cual),
+ * la pestaña publicada como CSV tiene EXACTAMENTE 4 columnas, en orden:
+ * A=ADSET, B=código país, C=PAIS, D=CIUDAD — es decir, índices 0, 1, 2, 3.
+ * (Una versión anterior de este archivo asumía que la tabla vivía en las
+ * columnas G-J porque la hoja completa tenía varias tablas lado a lado;
+ * la publicación actual solo expone estas 4 columnas limpias.)
  */
-const COL_ADSET = 6;
-const COL_COUNTRY_CODE = 7;
-const COL_COUNTRY = 8;
-const COL_CITY = 9;
+const COL_ADSET = 0;
+const COL_COUNTRY_CODE = 1;
+const COL_COUNTRY = 2;
+const COL_CITY = 3;
 
 /**
  * Normaliza un nombre de adset antes de comparar. Aplica, en orden:

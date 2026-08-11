@@ -1,4 +1,21 @@
-import type { AdsetRow } from './CityBreakdown';
+export interface AdRow {
+  adId: string;
+  adName: string;
+  adsetId: string;
+  adsetName: string;
+  campaignId: string;
+  campaignName: string;
+  businessLine: string;
+  country: string;
+  city: string | null;
+  spend: number;
+  impressions: number;
+  clicks: number;
+  reach: number;
+  purchases: number;
+  purchaseValue: number;
+  landingPageViews: number;
+}
 
 function fmtArs(n: number) {
   return n.toLocaleString('es-AR', { style: 'currency', currency: 'ARS', maximumFractionDigits: 0 });
@@ -11,18 +28,18 @@ function fmtPct(n: number) {
 }
 
 interface TopAdsetsProps {
-  rows: AdsetRow[];
+  rows: AdRow[];
   title?: string;
   limit?: number;
 }
 
 /**
- * Ranking de mejores ad sets por CTR (proxy de relevancia/calidad del anuncio).
- * Solo entran ad sets con impresiones suficientes (>= 1000) para que el CTR
- * sea representativo — un ad set con 3 impresiones y 1 click da 33% de CTR,
+ * Ranking de mejores anuncios por CTR (proxy de relevancia/calidad del anuncio).
+ * Solo entran anuncios con impresiones suficientes (>= 1000) para que el CTR
+ * sea representativo — un anuncio con 3 impresiones y 1 click da 33% de CTR,
  * que no es un dato confiable para "el mejor anuncio".
  */
-export default function TopAdsets({ rows, title = 'Mejores ad sets', limit = 10 }: TopAdsetsProps) {
+export default function TopAdsets({ rows, title = 'Mejores anuncios', limit = 10 }: TopAdsetsProps) {
   const MIN_IMPRESSIONS = 1000;
 
   const ranked = rows
@@ -39,7 +56,7 @@ export default function TopAdsets({ rows, title = 'Mejores ad sets', limit = 10 
       <section className="mb-8">
         <h2 className="text-sm font-semibold text-ink mb-4">{title}</h2>
         <p className="text-muted text-sm">
-          No hay ad sets con al menos {fmtInt(MIN_IMPRESSIONS)} impresiones en este rango para
+          No hay anuncios con al menos {fmtInt(MIN_IMPRESSIONS)} impresiones en este rango para
           armar un ranking confiable.
         </p>
       </section>
@@ -57,6 +74,7 @@ export default function TopAdsets({ rows, title = 'Mejores ad sets', limit = 10 
           <thead>
             <tr className="bg-paper text-left text-muted uppercase text-xs tracking-wide">
               <th className="px-4 py-3 font-medium">#</th>
+              <th className="px-4 py-3 font-medium whitespace-nowrap">Ad name</th>
               <th className="px-4 py-3 font-medium whitespace-nowrap">Ad set</th>
               <th className="px-4 py-3 font-medium whitespace-nowrap">País / Ciudad</th>
               <th className="px-4 py-3 font-medium text-right whitespace-nowrap">CTR</th>
@@ -67,9 +85,14 @@ export default function TopAdsets({ rows, title = 'Mejores ad sets', limit = 10 
           </thead>
           <tbody>
             {ranked.map((r, i) => (
-              <tr key={r.adsetId} className="border-t border-line">
+              <tr key={r.adId} className="border-t border-line">
                 <td className="px-4 py-3 font-mono text-muted">{i + 1}</td>
-                <td className="px-4 py-3 font-mono text-xs whitespace-nowrap">{r.adsetName}</td>
+                <td className="px-4 py-3 font-mono text-xs whitespace-nowrap max-w-[220px] truncate" title={r.adName}>
+                  {r.adName}
+                </td>
+                <td className="px-4 py-3 text-muted font-mono text-xs whitespace-nowrap max-w-[220px] truncate" title={r.adsetName}>
+                  {r.adsetName}
+                </td>
                 <td className="px-4 py-3 text-muted whitespace-nowrap">
                   {r.country}
                   {r.city ? ` — ${r.city}` : ''}
