@@ -15,6 +15,7 @@ import KpiCard from './KpiCard';
 import CountryTable from './CountryTable';
 import Sidebar, { NavItem } from './Sidebar';
 import Ga4Panel from './Ga4Panel';
+import Ga4CountryTable from './Ga4CountryTable';
 import CityBreakdown, { AdsetRow } from './CityBreakdown';
 import TopAdsets, { AdRow } from './TopAdsets';
 
@@ -143,7 +144,7 @@ export default function Dashboard() {
     return d.toISOString().slice(0, 10);
   });
   const [customUntil, setCustomUntil] = useState(todayStr());
-  const [activeNav, setActiveNav] = useState<NavItem>('Todos');
+  const [activeNav, setActiveNav] = useState<NavItem>('Shows');
   const [rows, setRows] = useState<InsightRow[]>([]);
   const [ga4, setGa4] = useState<Ga4Metrics | null>(null);
   const [ga4Error, setGa4Error] = useState<string | null>(null);
@@ -172,6 +173,12 @@ export default function Dashboard() {
   const [adsLoading, setAdsLoading] = useState(true);
   const [adsError, setAdsError] = useState<string | null>(null);
 
+  const [ga4CountryRows, setGa4CountryRows] = useState<
+    Array<{ country: string; firstOpen: number; inAppPurchases: number; purchaseRevenueUsd: number }>
+  >([]);
+  const [ga4CountryLoading, setGa4CountryLoading] = useState(true);
+  const [ga4CountryError, setGa4CountryError] = useState<string | null>(null);
+
   const dateRange = useMemo(() => {
     return preset === 'custom' ? { since: customSince, until: customUntil } : presetToDates(preset);
   }, [preset, customSince, customUntil]);
@@ -182,7 +189,6 @@ export default function Dashboard() {
 
     setLoading(true);
     setError(null);
-    setGa4Error(null);
     setAdsetsLoading(true);
     setAdsetsError(null);
 
@@ -199,21 +205,10 @@ export default function Dashboard() {
           return json.arsToUsd as number;
         })
         .catch(() => null),
-      fetch(`/api/ga4-insights?since=${since}&until=${until}`)
-        .then(async (res) => {
-          const json = await res.json();
-          if (!res.ok) throw new Error(json.error || 'Error al traer datos de GA4');
-          return json.data as Ga4Metrics;
-        })
-        .catch((err) => {
-          setGa4Error(err.message);
-          return null;
-        }),
     ])
-      .then(([insightRows, rate, ga4Data]) => {
+      .then(([insightRows, rate]) => {
         setRows(insightRows);
         setArsToUsd(rate);
-        setGa4(ga4Data);
       })
       .catch((err) => setError(err.message))
       .finally(() => setLoading(false));
@@ -232,6 +227,28 @@ export default function Dashboard() {
       .finally(() => setAdsetsLoading(false));
 
   }, [preset, customSince, customUntil]);
+
+  // Panel general de GA4: activo SOLO en la vista App — GA4 mide uso de la
+  // app en sí, no tiene sentido mostrarlo en Shows/Canal WA/Campañas Temporada.
+  useEffect(() => {
+    if (activeNav !== 'App') {
+      setGa4(null);
+      setGa4Error(null);
+      return;
+    }
+
+    const { since, until } = dateRange;
+    if (preset === 'custom' && (!since || !until || since > until)) return;
+
+    setGa4Error(null);
+    fetch(`/api/ga4-insights?since=${since}&until=${until}`)
+      .then(async (res) => {
+        const json = await res.json();
+        if (!res.ok) throw new Error(json.error || 'Error al traer datos de GA4');
+        setGa4(json.data as Ga4Metrics);
+      })
+      .catch((err) => setGa4Error(err.message));
+  }, [activeNav, dateRange, preset]);
 
   // Fetch de anuncios individuales SOLO cuando se está viendo Canal WA — es la
   // llamada más pesada a Meta (nivel "ad", el más granular), y pedirla en cada
@@ -258,10 +275,33 @@ export default function Dashboard() {
       .finally(() => setAdsLoading(false));
   }, [activeNav, dateRange, preset]);
 
-  const filteredRows = useMemo(() => {
-    if (activeNav === 'Todos') return rows;
-    return rows.filter((r) => r.businessLine === activeNav);
-  }, [rows, activeNav]);
+  // Desglose por país de GA4 (dimensión nativa de GA4, no la de Meta) —
+  // solo se necesita en la vista App, así que solo se pide ahí.
+  useEffect(() => {
+    if (activeNav !== 'App') {
+      setGa4CountryRows([]);
+      return;
+    }
+
+    const { since, until } = dateRange;
+    if (preset === 'custom' && (!since || !until || since > until)) return;
+
+    setGa4CountryLoading(true);
+    setGa4CountryError(null);
+    fetch(`/api/ga4-country-breakdown?since=${since}&until=${until}`)
+      .then(async (res) => {
+        const json = await res.json();
+        if (!res.ok) throw new Error(json.error || 'Error al traer el desglose por país de GA4');
+        setGa4CountryRows(json.data);
+      })
+      .catch((err) => setGa4CountryError(err.message))
+      .finally(() => setGa4CountryLoading(false));
+  }, [activeNav, dateRange, preset]);
+
+  const filteredRows = useMemo(
+    () => rows.filter((r) => r.businessLine === activeNav),
+    [rows, activeNav]
+  );
 
   const totals = useMemo(() => computeTotals(filteredRows), [filteredRows]);
 
@@ -301,15 +341,15 @@ export default function Dashboard() {
     return Array.from(map.values()).sort((a, b) => b.spend - a.spend);
   }, [filteredRows]);
 
-  const filteredAdsetRows = useMemo(() => {
-    if (activeNav === 'Todos') return adsetRows;
-    return adsetRows.filter((r) => r.businessLine === activeNav);
-  }, [adsetRows, activeNav]);
+  const filteredAdsetRows = useMemo(
+    () => adsetRows.filter((r) => r.businessLine === activeNav),
+    [adsetRows, activeNav]
+  );
 
-  const filteredAdRows = useMemo(() => {
-    if (activeNav === 'Todos') return adRows;
-    return adRows.filter((r) => r.businessLine === activeNav);
-  }, [adRows, activeNav]);
+  const filteredAdRows = useMemo(
+    () => adRows.filter((r) => r.businessLine === activeNav),
+    [adRows, activeNav]
+  );
 
   // Gasto por país usando el país REAL por ad set (vía planilla), no el nombre
   // de campaña. Esto es lo que permite desglosar campañas "RO_LATAM_..." en
@@ -347,7 +387,7 @@ export default function Dashboard() {
   // Shows: Inversión (ARS + USD debajo), Alcance, Impresiones, Frecuencia, CPM (ARS + USD debajo),
   //        Clics, CTR, Landing page views, Compras
   // Canal WA: Inversión, Alcance, Impresiones, CPM, CTR, Frecuencia, Visitas a la página
-  // Campañas Temporada y Todos: Inversión, Alcance, Impresiones, CPM, CTR, Frecuencia
+  // Campañas Temporada: Inversión, Alcance, Impresiones, CPM, CTR, Frecuencia
   interface KpiCardSpec {
     label: string;
     value: string;
@@ -364,12 +404,25 @@ export default function Dashboard() {
       // porque son eventos de USO de la app en sí, y GA4/Firebase sí los está
       // registrando correctamente (a diferencia de Meta, que para esta cuenta
       // no trae action_type de instalación/compra en absoluto).
+      //
+      // IMPORTANTE sobre moneda: purchaseRevenue de GA4 viene nativamente en
+      // USD (no en ARS como el resto del dashboard). Por eso NO se le aplica
+      // fmtUsd (que espera un monto en ARS y lo convierte a USD) — ya está en
+      // USD. Para mostrar el equivalente en ARS (y para que el ROAS compare
+      // manzanas con manzanas) se hace la conversión inversa: ARS = USD / tasa.
       const ga4Installs = ga4?.keyEventsFirstOpen ?? 0;
       const ga4InAppPurchases = ga4?.keyEventsInAppPurchase ?? 0;
-      const ga4Revenue = ga4?.purchaseRevenue ?? 0;
+      const ga4RevenueUsd = ga4?.purchaseRevenue ?? 0;
       const ga4FirstTimePurchasers = ga4?.firstTimePurchasers ?? 0;
       const ga4TotalPurchasers = ga4?.totalPurchasers ?? 0;
-      const roasGa4 = t.spend > 0 ? ga4Revenue / t.spend : 0;
+
+      const ga4RevenueArs = arsToUsd ? ga4RevenueUsd / arsToUsd : null;
+      const fmtUsdDirect = (usd: number) =>
+        usd.toLocaleString('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 });
+
+      // Gasto de Meta convertido a USD para poder dividir USD/USD, no USD/ARS.
+      const spendUsd = arsToUsd ? t.spend * arsToUsd : null;
+      const roasGa4 = spendUsd && spendUsd > 0 ? ga4RevenueUsd / spendUsd : 0;
 
       return [
         { label: 'Inversión', value: fmtArs(t.spend), usdValue: fmtUsd(t.spend), accent: 'coral' },
@@ -378,7 +431,12 @@ export default function Dashboard() {
         { label: 'Compradores 1ra vez (GA4)', value: fmtInt(ga4FirstTimePurchasers), accent: 'teal' },
         { label: 'Total de compradores (GA4)', value: fmtInt(ga4TotalPurchasers), accent: 'teal' },
         { label: 'Compras en la app (GA4)', value: fmtInt(ga4InAppPurchases), accent: 'teal' },
-        { label: 'Valor de las compras (GA4)', value: fmtArs(ga4Revenue), usdValue: fmtUsd(ga4Revenue), accent: 'teal' },
+        {
+          label: 'Valor de las compras (GA4)',
+          value: ga4RevenueArs !== null ? fmtArs(ga4RevenueArs) : fmtUsdDirect(ga4RevenueUsd),
+          usdValue: ga4RevenueArs !== null ? fmtUsdDirect(ga4RevenueUsd) : undefined,
+          accent: 'teal',
+        },
         { label: 'ROAS (GA4 revenue / Meta spend)', value: `${fmtDec(roasGa4)}x`, accent: 'amber' },
       ];
     }
@@ -409,7 +467,7 @@ export default function Dashboard() {
       ];
     }
 
-    // Campañas Temporada y Todos
+    // Campañas Temporada
     return [
       { label: 'Inversión', value: fmtArs(t.spend), usdValue: fmtUsd(t.spend), accent: 'coral' },
       { label: 'Alcance', value: fmtInt(t.reach), accent: 'indigo' },
@@ -523,14 +581,23 @@ export default function Dashboard() {
               <TopAdsets rows={filteredAdRows} title="Mejores anuncios — Canal WA" />
             )}
 
-            {ga4Error ? (
+            {activeNav === 'App' && ga4Error ? (
               <div className="mb-8 rounded-xl border border-plimOrange bg-plimOrange/10 text-ink px-4 py-3 text-sm">
                 GA4 no respondió: {ga4Error}. Revisa GA4_PROPERTY_ID, GA4_CLIENT_EMAIL y GA4_PRIVATE_KEY,
                 y que la cuenta de servicio tenga acceso de Viewer a la propiedad.
               </div>
-            ) : ga4 ? (
+            ) : activeNav === 'App' && ga4 ? (
               <Ga4Panel metrics={ga4} />
             ) : null}
+
+            {activeNav === 'App' && (
+              <Ga4CountryTable
+                rows={ga4CountryRows}
+                arsToUsd={arsToUsd}
+                loading={ga4CountryLoading}
+                error={ga4CountryError}
+              />
+            )}
 
             <section className="bg-panel rounded-xl border border-line p-5 mb-8">
               <h2 className="text-sm font-semibold text-ink mb-4">Gasto por país (ARS)</h2>

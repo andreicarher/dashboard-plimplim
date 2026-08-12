@@ -143,3 +143,83 @@ export async function fetchGa4Metrics(since: string, until: string): Promise<Ga4
     sessionKeyEventRateFirstOpen: eventValues.get('first_open')?.sessionKeyEventRate || 0,
   };
 }
+
+/**
+ * Desglose por país, usando la dimensión nativa "country" de GA4 (no la
+ * segmentación por nombre de ad set de Meta) — exactamente la misma lógica
+ * que un reporte de Looker Studio con esa dimensión.
+ */
+export interface Ga4CountryRow {
+  country: string;
+  firstOpen: number;
+  inAppPurchases: number;
+  purchaseRevenueUsd: number;
+}
+
+export async function fetchGa4CountryBreakdown(since: string, until: string): Promise<Ga4CountryRow[]> {
+  const propertyId = process.env.GA4_PROPERTY_ID;
+  if (!propertyId) {
+    throw new Error('Falta GA4_PROPERTY_ID en las variables de entorno.');
+  }
+
+  const client = getClient();
+
+  // Query A: conteo de first_open e in_app_purchase, desglosados por país.
+  const [eventsReport] = await client.runReport({
+    property: `properties/${propertyId}`,
+    dateRanges: [{ startDate: since, endDate: until }],
+    dimensions: [{ name: 'country' }, { name: 'eventName' }],
+    metrics: [{ name: 'eventCount' }],
+    dimensionFilter: {
+      filter: {
+        fieldName: 'eventName',
+        inListFilter: { values: ['first_open', 'in_app_purchase'] },
+      },
+    },
+    limit: 250,
+  });
+
+  // Query B: ingresos por compra, desglosados por país (no necesita filtro de
+  // evento — purchaseRevenue ya está scoped a eventos de compra).
+  const [revenueReport] = await client.runReport({
+    property: `properties/${propertyId}`,
+    dateRanges: [{ startDate: since, endDate: until }],
+    dimensions: [{ name: 'country' }],
+    metrics: [{ name: 'purchaseRevenue' }],
+    limit: 250,
+  });
+
+  const byCountry = new Map<string, Ga4CountryRow>();
+
+  for (const row of eventsReport.rows || []) {
+    const country = row.dimensionValues?.[0]?.value || '(sin país)';
+    const eventName = row.dimensionValues?.[1]?.value || '';
+    const count = parseFloat(row.metricValues?.[0]?.value || '0');
+
+    const existing = byCountry.get(country) || {
+      country,
+      firstOpen: 0,
+      inAppPurchases: 0,
+      purchaseRevenueUsd: 0,
+    };
+    if (eventName === 'first_open') existing.firstOpen = count;
+    if (eventName === 'in_app_purchase') existing.inAppPurchases = count;
+    byCountry.set(country, existing);
+  }
+
+  for (const row of revenueReport.rows || []) {
+    const country = row.dimensionValues?.[0]?.value || '(sin país)';
+    const revenue = parseFloat(row.metricValues?.[0]?.value || '0');
+
+    const existing = byCountry.get(country) || {
+      country,
+      firstOpen: 0,
+      inAppPurchases: 0,
+      purchaseRevenueUsd: 0,
+    };
+    existing.purchaseRevenueUsd = revenue;
+    byCountry.set(country, existing);
+  }
+
+  return Array.from(byCountry.values()).sort((a, b) => b.firstOpen - a.firstOpen);
+}

@@ -186,7 +186,7 @@ export default function CityBreakdown({
   const [selectedCity, setSelectedCity] = useState<string>('');
 
   const scopedRows = useMemo(
-    () => (activeNav === 'Todos' ? rows : rows.filter((r) => r.businessLine === activeNav)),
+    () => rows.filter((r) => r.businessLine === activeNav),
     [rows, activeNav]
   );
 

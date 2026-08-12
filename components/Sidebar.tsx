@@ -2,10 +2,9 @@
 
 import Image from 'next/image';
 
-export type NavItem = 'Todos' | 'Shows' | 'App' | 'Canal WA' | 'Campañas Temporada';
+export type NavItem = 'Shows' | 'App' | 'Canal WA' | 'Campañas Temporada';
 
 const NAV_ITEMS: { key: NavItem; icon: string }[] = [
-  { key: 'Todos', icon: '◆' },
   { key: 'Shows', icon: '🎪' },
   { key: 'App', icon: '📱' },
   { key: 'Canal WA', icon: '💬' },
@@ -54,7 +53,7 @@ export default function Sidebar({ active, onSelect }: SidebarProps) {
       </nav>
 
       <div className="mt-auto px-5 py-3 text-[10px] text-white/40 font-mono">
-        v17 · 11 ago 15:58
+        v20 · 11 ago 17:05
       </div>
     </aside>
   );
