@@ -157,7 +157,7 @@ export default function TopAdsets({ rows, title = 'Mejores anuncios', limit = 10
               {ranked.map((r, i) => (
                 <tr key={r.adId} className="border-t border-line">
                   <td className="px-4 py-3 font-mono text-muted">{i + 1}</td>
-                  <td className="px-4 py-3 font-mono text-xs whitespace-nowrap max-w-[220px] truncate" title={r.adName}>
+                  <td className="px-4 py-3 font-mono text-xs whitespace-nowrap" title={r.adName}>
                     {r.adName}
                   </td>
                   <td className="px-4 py-3 text-muted font-mono text-xs whitespace-nowrap max-w-[220px] truncate" title={r.adsetName}>
