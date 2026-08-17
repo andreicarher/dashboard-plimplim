@@ -371,6 +371,8 @@ export default function Dashboard() {
         impressions: number;
         clicks: number;
         landingPageViews: number;
+        purchases: number;
+        purchaseValue: number;
         lowConfidenceCount: number;
       }
     >();
@@ -383,6 +385,8 @@ export default function Dashboard() {
         impressions: 0,
         clicks: 0,
         landingPageViews: 0,
+        purchases: 0,
+        purchaseValue: 0,
         lowConfidenceCount: 0,
       };
       existing.spend += r.spend;
@@ -390,6 +394,8 @@ export default function Dashboard() {
       existing.impressions += r.impressions;
       existing.clicks += r.clicks;
       existing.landingPageViews += r.landingPageViews;
+      existing.purchases += r.purchases;
+      existing.purchaseValue += r.purchaseValue;
       if (r.countryConfidence === 'low') existing.lowConfidenceCount += 1;
       map.set(r.country, existing);
     }
@@ -448,6 +454,7 @@ export default function Dashboard() {
     label: string;
     value: string;
     usdValue?: string;
+    note?: string;
     accent: 'coral' | 'teal' | 'indigo' | 'amber';
   }
 
@@ -507,8 +514,8 @@ export default function Dashboard() {
         { label: 'Clics', value: fmtInt(t.clicks), accent: 'indigo' },
         { label: 'CTR', value: fmtPct(t.ctr), accent: 'amber' },
         { label: 'Landing page views', value: fmtInt(t.landingPageViews), accent: 'teal' },
-        { label: 'Compras', value: fmtInt(t.purchases), accent: 'teal' },
-        { label: 'Valor de las compras', value: fmtArs(t.purchaseValue), usdValue: fmtUsd(t.purchaseValue), accent: 'teal' },
+        { label: 'Compras', value: fmtInt(t.purchases), note: 'Solo campañas con conversión de compra activa en Meta (ej. Chile)', accent: 'teal' },
+        { label: 'Valor de las compras', value: fmtArs(t.purchaseValue), usdValue: fmtUsd(t.purchaseValue), note: 'Solo campañas con conversión de compra activa en Meta (ej. Chile)', accent: 'teal' },
       ];
     }
 
@@ -605,7 +612,7 @@ export default function Dashboard() {
           <>
             <section className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
               {kpiCards.map((c) => (
-                <KpiCard key={c.label} label={c.label} value={c.value} usdValue={c.usdValue} accent={c.accent} />
+                <KpiCard key={c.label} label={c.label} value={c.value} usdValue={c.usdValue} note={c.note} accent={c.accent} />
               ))}
             </section>
 
