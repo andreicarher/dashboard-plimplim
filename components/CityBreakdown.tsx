@@ -108,6 +108,7 @@ function getColumns(businessLine: NavItem): ColumnDef[] {
       },
       { label: 'Landing page views', render: (r) => fmtInt(r.landingPageViews) },
       { label: 'Compras', render: (r) => fmtInt(r.purchases) },
+      { label: 'Valor de compras', render: (r, usd) => <CostCell ars={r.purchaseValue} arsToUsd={usd} /> },
     ];
   }
 
