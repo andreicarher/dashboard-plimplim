@@ -1,5 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { fetchMetaAdInsights, getActionValue, getActionMonetaryValue } from '@/lib/metaApi';
+import {
+  fetchMetaAdInsights,
+  fetchAdStatuses,
+  fetchAdsetStatuses,
+  fetchCampaignStatuses,
+  getActionValue,
+  getActionMonetaryValue,
+} from '@/lib/metaApi';
 import { fetchAdsetLocations, normalizeAdsetName } from '@/lib/adsetLocations';
 import { classifyCountry, classifyBusinessLine } from '@/lib/classify';
 
@@ -18,9 +25,12 @@ export async function GET(req: NextRequest) {
   }
 
   try {
-    const [rows, locations] = await Promise.all([
+    const [rows, locations, adStatuses, adsetStatuses, campaignStatuses] = await Promise.all([
       fetchMetaAdInsights({ since, until }),
       fetchAdsetLocations(),
+      fetchAdStatuses().catch(() => new Map<string, string>()),
+      fetchAdsetStatuses().catch(() => new Map<string, string>()),
+      fetchCampaignStatuses().catch(() => new Map<string, string>()),
     ]);
 
     const enriched = rows.map((row) => {
@@ -40,6 +50,16 @@ export async function GET(req: NextRequest) {
         city = null;
       }
 
+      const adStatus = adStatuses.get(row.ad_id) || 'DESCONOCIDO';
+      const adsetStatus = adsetStatuses.get(row.adset_id) || 'DESCONOCIDO';
+      const campaignStatus = campaignStatuses.get(row.campaign_id) || 'DESCONOCIDO';
+
+      // "Activo" en el sentido de "realmente sirviendo" requiere que las TRES
+      // capas (anuncio, ad set y campaña) estén activas — si cualquiera de
+      // las tres está pausada, el anuncio no se está entregando en la
+      // práctica, aunque las otras dos digan "ACTIVE".
+      const isFullyActive = adStatus === 'ACTIVE' && adsetStatus === 'ACTIVE' && campaignStatus === 'ACTIVE';
+
       return {
         adId: row.ad_id,
         adName: row.ad_name,
@@ -50,6 +70,10 @@ export async function GET(req: NextRequest) {
         businessLine: classifyBusinessLine(row.campaign_name),
         country,
         city,
+        adStatus,
+        adsetStatus,
+        campaignStatus,
+        isFullyActive,
         spend: parseFloat(row.spend || '0'),
         impressions: parseInt(row.impressions || '0', 10),
         clicks: parseInt(row.clicks || '0', 10),

@@ -174,7 +174,13 @@ export function getActionMonetaryValue(row: ActionsShape, actionType: string): n
  * Es un atributo de configuración, no una métrica de un rango de fechas —
  * por eso viene de un endpoint distinto al de insights.
  */
-export async function fetchAdsetStatuses(): Promise<Map<string, string>> {
+/**
+ * Trae el estado ACTUAL (no histórico) de entidades de Meta: ACTIVE, PAUSED,
+ * etc. Es un atributo de configuración, no una métrica de un rango de fechas
+ * — por eso viene de un endpoint distinto al de insights. Sirve tanto para
+ * ad sets como para anuncios y campañas (mismo shape de respuesta).
+ */
+async function fetchEntityStatuses(edge: 'adsets' | 'ads' | 'campaigns'): Promise<Map<string, string>> {
   const token = process.env.META_ACCESS_TOKEN;
   const accountId = process.env.META_AD_ACCOUNT_ID;
 
@@ -184,7 +190,7 @@ export async function fetchAdsetStatuses(): Promise<Map<string, string>> {
     );
   }
 
-  const url = new URL(`https://graph.facebook.com/${GRAPH_VERSION}/act_${accountId}/adsets`);
+  const url = new URL(`https://graph.facebook.com/${GRAPH_VERSION}/act_${accountId}/${edge}`);
   url.searchParams.set('fields', 'id,effective_status');
   url.searchParams.set('limit', '500');
   url.searchParams.set('access_token', token);
@@ -211,6 +217,18 @@ export async function fetchAdsetStatuses(): Promise<Map<string, string>> {
   }
 
   return map;
+}
+
+export function fetchAdsetStatuses(): Promise<Map<string, string>> {
+  return fetchEntityStatuses('adsets');
+}
+
+export function fetchAdStatuses(): Promise<Map<string, string>> {
+  return fetchEntityStatuses('ads');
+}
+
+export function fetchCampaignStatuses(): Promise<Map<string, string>> {
+  return fetchEntityStatuses('campaigns');
 }
 
 export interface MetaAdInsightRow {

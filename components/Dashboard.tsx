@@ -57,18 +57,74 @@ interface Ga4Metrics {
   sessionKeyEventRateFirstOpen: number;
 }
 
-type RangePreset = '7' | '30' | '90' | 'custom';
+type RangePreset =
+  | 'today'
+  | 'yesterday'
+  | '7'
+  | '14'
+  | '30'
+  | 'lastMonth'
+  | 'thisMonth'
+  | 'allTime'
+  | 'custom';
 
-function presetToDates(preset: RangePreset) {
-  const until = new Date();
-  const since = new Date();
-  since.setDate(since.getDate() - parseInt(preset, 10));
-  const fmt = (d: Date) => d.toISOString().slice(0, 10);
-  return { since: fmt(since), until: fmt(until) };
+const RANGE_PRESET_LABELS: Record<RangePreset, string> = {
+  today: 'Hoy',
+  yesterday: 'Ayer',
+  '7': 'Últimos 7 días',
+  '14': 'Últimos 14 días',
+  '30': 'Últimos 30 días',
+  lastMonth: 'Mes pasado',
+  thisMonth: 'Mes actual',
+  allTime: 'Todo el histórico',
+  custom: 'Personalizado…',
+};
+
+function fmtDate(d: Date) {
+  return d.toISOString().slice(0, 10);
 }
 
 function todayStr() {
-  return new Date().toISOString().slice(0, 10);
+  return fmtDate(new Date());
+}
+
+function presetToDates(preset: RangePreset): { since: string; until: string } {
+  const today = new Date();
+
+  switch (preset) {
+    case 'today':
+      return { since: fmtDate(today), until: fmtDate(today) };
+    case 'yesterday': {
+      const y = new Date(today);
+      y.setDate(y.getDate() - 1);
+      return { since: fmtDate(y), until: fmtDate(y) };
+    }
+    case '7':
+    case '14':
+    case '30': {
+      const since = new Date(today);
+      since.setDate(since.getDate() - parseInt(preset, 10));
+      return { since: fmtDate(since), until: fmtDate(today) };
+    }
+    case 'lastMonth': {
+      // Mes calendario completo anterior: día 1 al último día del mes pasado.
+      const firstOfThisMonth = new Date(today.getFullYear(), today.getMonth(), 1);
+      const lastOfLastMonth = new Date(firstOfThisMonth);
+      lastOfLastMonth.setDate(lastOfLastMonth.getDate() - 1);
+      const firstOfLastMonth = new Date(lastOfLastMonth.getFullYear(), lastOfLastMonth.getMonth(), 1);
+      return { since: fmtDate(firstOfLastMonth), until: fmtDate(lastOfLastMonth) };
+    }
+    case 'thisMonth': {
+      const firstOfThisMonth = new Date(today.getFullYear(), today.getMonth(), 1);
+      return { since: fmtDate(firstOfThisMonth), until: fmtDate(today) };
+    }
+    case 'allTime':
+      // Sin fecha de inicio real de la cuenta a mano, se usa 2015-01-01 como
+      // "bien antes de que existiera cualquier campaña" (confirmado con Andrei).
+      return { since: '2015-01-01', until: fmtDate(today) };
+    default:
+      return { since: fmtDate(today), until: fmtDate(today) };
+  }
 }
 
 const COLORS = ['#2E86DE', '#F7941D', '#ED1C24', '#1F9E8E', '#1B4F91', '#FDC500'];
@@ -250,12 +306,12 @@ export default function Dashboard() {
       .catch((err) => setGa4Error(err.message));
   }, [activeNav, dateRange, preset]);
 
-  // Fetch de anuncios individuales SOLO cuando se está viendo Canal WA — es la
-  // llamada más pesada a Meta (nivel "ad", el más granular), y pedirla en cada
-  // carga sin importar la vista contribuía a agotar el límite de peticiones
-  // de la app. Solo se necesita para "Mejores anuncios", exclusivo de esa vista.
+  // Fetch de anuncios individuales SOLO en Shows y Canal WA — es la llamada
+  // más pesada a Meta (nivel "ad", el más granular), y pedirla en cada carga
+  // sin importar la vista contribuía a agotar el límite de peticiones de la
+  // app. Solo se necesita para "Mejores anuncios", exclusivo de esas dos vistas.
   useEffect(() => {
-    if (activeNav !== 'Canal WA') {
+    if (activeNav !== 'Canal WA' && activeNav !== 'Shows') {
       setAdRows([]);
       return;
     }
@@ -452,6 +508,7 @@ export default function Dashboard() {
         { label: 'CTR', value: fmtPct(t.ctr), accent: 'amber' },
         { label: 'Landing page views', value: fmtInt(t.landingPageViews), accent: 'teal' },
         { label: 'Compras', value: fmtInt(t.purchases), accent: 'teal' },
+        { label: 'Valor de las compras', value: fmtArs(t.purchaseValue), usdValue: fmtUsd(t.purchaseValue), accent: 'teal' },
       ];
     }
 
@@ -491,31 +548,17 @@ export default function Dashboard() {
             </p>
           </div>
           <div className="flex flex-col items-end gap-2">
-            <div className="flex gap-2">
-              {(['7', '30', '90'] as RangePreset[]).map((p) => (
-                <button
-                  key={p}
-                  onClick={() => setPreset(p)}
-                  className={`px-3 py-1.5 rounded-lg text-sm font-medium border transition ${
-                    preset === p
-                      ? 'bg-plimBlue text-white border-plimBlue'
-                      : 'bg-panel text-muted border-line hover:border-plimBlue'
-                  }`}
-                >
-                  {p} días
-                </button>
+            <select
+              value={preset}
+              onChange={(e) => setPreset(e.target.value as RangePreset)}
+              className="px-3 py-2 rounded-lg border border-line bg-panel text-ink text-sm font-medium min-w-[180px]"
+            >
+              {(Object.keys(RANGE_PRESET_LABELS) as RangePreset[]).map((p) => (
+                <option key={p} value={p}>
+                  {RANGE_PRESET_LABELS[p]}
+                </option>
               ))}
-              <button
-                onClick={() => setPreset('custom')}
-                className={`px-3 py-1.5 rounded-lg text-sm font-medium border transition ${
-                  preset === 'custom'
-                    ? 'bg-plimBlue text-white border-plimBlue'
-                    : 'bg-panel text-muted border-line hover:border-plimBlue'
-                }`}
-              >
-                Personalizado
-              </button>
-            </div>
+            </select>
             {preset === 'custom' && (
               <div className="flex items-center gap-2">
                 <input
@@ -577,8 +620,11 @@ export default function Dashboard() {
               error={adsetsError}
             />
 
-            {activeNav === 'Canal WA' && !adsLoading && !adsError && (
-              <TopAdsets rows={filteredAdRows} title="Mejores anuncios — Canal WA" />
+            {(activeNav === 'Canal WA' || activeNav === 'Shows') && !adsLoading && !adsError && (
+              <TopAdsets
+                rows={filteredAdRows}
+                title={`Mejores anuncios — ${activeNav}`}
+              />
             )}
 
             {activeNav === 'App' && ga4Error ? (
