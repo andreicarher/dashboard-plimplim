@@ -31,6 +31,7 @@ export interface AdsetLocationsResult {
     rawRowCount: number;
     headerPreview: string;
     sampleDataRow: string;
+    detectedAdsetColumnIndex: number;
   };
 }
 
@@ -84,21 +85,27 @@ function parseCsv(text: string): string[][] {
 }
 
 /**
- * IMPORTANTE sobre las columnas: la hoja tiene VARIAS tablas distintas una
- * junto a la otra (columna A = una lista vieja de "AdSet name" con su país,
- * columna D = CAMPAÑA/OBJETIVO), que NO corresponden fila por fila con la
- * tabla real. La tabla que de verdad mapea ADSET -> país/ciudad vive en las
- * columnas G, H, I, J (índices 6, 7, 8, 9 empezando en 0) — confirmado
- * descargando el CSV publicado directamente y mirando la fila de headers:
- * "...,ADSET,código país,PAIS,CIUDAD,..." aparece en esa posición, no al
- * principio de la fila. Si en algún momento la hoja se simplifica a solo
- * esas 4 columnas (A-D), hay que volver a bajar estos índices a 0-3 — pero
- * mientras conviva con las otras tablas, tiene que ser 6-9.
+ * IMPORTANTE sobre las columnas: el CSV publicado por Google a veces cambia
+ * de estructura entre una lectura y otra (a veces solo 4 columnas limpias,
+ * a veces varias tablas superpuestas con la real corrida a la posición G-J)
+ * — probablemente porque Google sirve el link publicado desde distintos
+ * nodos de caché según el momento. En vez de fijar un índice de columna a
+ * mano (que se rompe cada vez que la estructura cambia), se detecta
+ * dinámicamente en qué columna está el header exacto "ADSET" y se asume que
+ * código país / PAIS / CIUDAD son las 3 columnas siguientes — ese orden
+ * relativo (ADSET, código país, PAIS, CIUDAD) se mantuvo estable en todas
+ * las variantes que vimos, aunque la posición absoluta cambie.
  */
-const COL_ADSET = 6;
-const COL_COUNTRY_CODE = 7;
-const COL_COUNTRY = 8;
-const COL_CITY = 9;
+function findAdsetColumnIndex(headerRow: string[]): number {
+  const normalize = (s: string) =>
+    s.trim().normalize('NFC').toUpperCase();
+
+  const idx = headerRow.findIndex((cell) => normalize(cell) === 'ADSET');
+  // Si no se encuentra el header exacto "ADSET" (caso raro), se usa 0 como
+  // último recurso — mejor eso que reventar, aunque probablemente falle el
+  // matching hasta que se corrija la planilla.
+  return idx === -1 ? 0 : idx;
+}
 
 /**
  * Normaliza un nombre de adset antes de comparar. Aplica, en orden:
@@ -149,17 +156,23 @@ export async function fetchAdsetLocations(): Promise<AdsetLocationsResult> {
   const text = await res.text();
   const rows = parseCsv(text);
 
-  // Primera fila = headers. Se ignora por posición, no por nombre, para no
-  // depender de que el usuario no reordene columnas.
+  // Primera fila = headers. La posición de la tabla real se detecta acá
+  // (ver findAdsetColumnIndex), no se asume fija.
+  const headerRow = rows[0] || [];
+  const colAdset = findAdsetColumnIndex(headerRow);
+  const colCountryCode = colAdset + 1;
+  const colCountry = colAdset + 2;
+  const colCity = colAdset + 3;
+
   const dataRows = rows.slice(1);
 
   const raw = new Map<string, AdsetLocation[]>();
 
   for (const cols of dataRows) {
-    const adsetName = normalizeAdsetName(cols[COL_ADSET] || '');
-    const countryCode = (cols[COL_COUNTRY_CODE] || '').trim();
-    const country = (cols[COL_COUNTRY] || '').trim();
-    const city = (cols[COL_CITY] || '').trim();
+    const adsetName = normalizeAdsetName(cols[colAdset] || '');
+    const countryCode = (cols[colCountryCode] || '').trim();
+    const country = (cols[colCountry] || '').trim();
+    const city = (cols[colCity] || '').trim();
 
     // Saltar filas vacías o filas que no son adsets reales (ej. "#N/A" / "NA").
     if (!adsetName || countryCode === '#N/A' || country === 'NA') continue;
@@ -195,6 +208,7 @@ export async function fetchAdsetLocations(): Promise<AdsetLocationsResult> {
       rawRowCount: dataRows.length,
       headerPreview: (rows[0] || []).slice(0, 12).join(' | '),
       sampleDataRow: (dataRows[0] || []).slice(0, 12).join(' | '),
+      detectedAdsetColumnIndex: colAdset,
     },
   };
 
