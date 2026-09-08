@@ -1,17 +1,36 @@
+import { JWT } from 'google-auth-library';
+
 /**
- * Lee la pestaña "CONCATENADO ETIQUETAS" del Sheet de Andrei, publicada como CSV,
- * y construye un mapa NOMBRE DE ADSET (exacto) -> {código país, país, ciudad}.
+ * Lee la pestaña "CONCATENADO ETIQUETAS" del Sheet de Andrei DIRECTO por la
+ * API de Google Sheets (no por el link de "Publicar en la Web"), y construye
+ * un mapa NOMBRE DE ADSET (exacto) -> {código país, país, ciudad}.
+ *
+ * POR QUÉ SE CAMBIÓ DE "PUBLICAR EN LA WEB" A LA API:
+ * El link público de "Publicar en la Web" pasa por una capa de caché de
+ * Google (CDN) que no controlamos — distintos servidores de Google pueden
+ * tener versiones distintas del archivo por un buen rato (a veces mucho más
+ * de lo esperable) después de una edición. La API de Sheets, en cambio, lee
+ * el valor real de la celda en cada request, sin esa capa de caché — el
+ * cambio se ve reflejado apenas se guarda en la hoja.
+ *
+ * Usa la MISMA cuenta de servicio que ya está configurada para GA4
+ * (GA4_CLIENT_EMAIL / GA4_PRIVATE_KEY) — solo hace falta:
+ *   1) Habilitar la Google Sheets API en el mismo proyecto de Google Cloud
+ *   2) Compartir ESTA planilla con el email de la cuenta de servicio
+ *      (Viewer alcanza)
+ *   3) Agregar GOOGLE_SHEETS_SPREADSHEET_ID como variable de entorno
  *
  * Por qué un mapeo manual y no algo derivado de Meta:
- * Meta no expone "ciudad" como breakdown de métricas de entrega — lo más granular
- * que ofrece es "region" (provincia/estado). La ciudad real de cada ad set vive
- * únicamente en esta planilla curada a mano por el equipo.
+ * Meta no expone "ciudad" como breakdown de métricas de entrega — lo más
+ * granular que ofrece es "region" (provincia/estado). La ciudad real de cada
+ * ad set vive únicamente en esta planilla curada a mano por el equipo.
  *
- * Manejo de conflictos: si el mismo nombre de adset aparece más de una vez con
- * país/ciudad distintos (esto pasa en los datos reales, ej. un adset de
- * "Monticello" aparece una vez como Argentina y otra como Chile), NO elegimos
- * uno al azar. Se guarda como conflicto y se expone para que se revise a mano.
+ * Manejo de conflictos: si el mismo nombre de adset aparece más de una vez
+ * con país/ciudad distintos, NO se elige uno al azar. Se guarda como
+ * conflicto y se expone para que se revise a mano.
  */
+
+const TAB_NAME = 'CONCATENADO ETIQUETAS';
 
 export interface AdsetLocation {
   countryCode: string;
@@ -32,78 +51,19 @@ export interface AdsetLocationsResult {
     headerPreview: string;
     sampleDataRow: string;
     detectedAdsetColumnIndex: number;
+    source: 'google-sheets-api';
   };
 }
 
-/** Parser CSV simple pero robusto a comillas, comas y saltos de línea embebidos. */
-function parseCsv(text: string): string[][] {
-  const rows: string[][] = [];
-  let row: string[] = [];
-  let field = '';
-  let inQuotes = false;
-
-  for (let i = 0; i < text.length; i++) {
-    const char = text[i];
-
-    if (inQuotes) {
-      if (char === '"') {
-        if (text[i + 1] === '"') {
-          field += '"';
-          i++;
-        } else {
-          inQuotes = false;
-        }
-      } else {
-        field += char;
-      }
-      continue;
-    }
-
-    if (char === '"') {
-      inQuotes = true;
-    } else if (char === ',') {
-      row.push(field);
-      field = '';
-    } else if (char === '\n') {
-      row.push(field);
-      rows.push(row);
-      row = [];
-      field = '';
-    } else if (char === '\r') {
-      // ignorar
-    } else {
-      field += char;
-    }
-  }
-
-  if (field.length > 0 || row.length > 0) {
-    row.push(field);
-    rows.push(row);
-  }
-
-  return rows;
-}
-
 /**
- * IMPORTANTE sobre las columnas: el CSV publicado por Google a veces cambia
- * de estructura entre una lectura y otra (a veces solo 4 columnas limpias,
- * a veces varias tablas superpuestas con la real corrida a la posición G-J)
- * — probablemente porque Google sirve el link publicado desde distintos
- * nodos de caché según el momento. En vez de fijar un índice de columna a
- * mano (que se rompe cada vez que la estructura cambia), se detecta
- * dinámicamente en qué columna está el header exacto "ADSET" y se asume que
- * código país / PAIS / CIUDAD son las 3 columnas siguientes — ese orden
- * relativo (ADSET, código país, PAIS, CIUDAD) se mantuvo estable en todas
- * las variantes que vimos, aunque la posición absoluta cambie.
+ * Detecta dinámicamente en qué columna está el header exacto "ADSET" y
+ * asume que código país / PAIS / CIUDAD son las 3 columnas siguientes — la
+ * hoja tiene otras tablas antes de esta, así que la posición absoluta no es
+ * fija, pero el orden relativo (ADSET, código país, PAIS, CIUDAD) sí.
  */
 function findAdsetColumnIndex(headerRow: string[]): number {
-  const normalize = (s: string) =>
-    s.trim().normalize('NFC').toUpperCase();
-
+  const normalize = (s: string) => s.trim().normalize('NFC').toUpperCase();
   const idx = headerRow.findIndex((cell) => normalize(cell) === 'ADSET');
-  // Si no se encuentra el header exacto "ADSET" (caso raro), se usa 0 como
-  // último recurso — mejor eso que reventar, aunque probablemente falle el
-  // matching hasta que se corrija la planilla.
   return idx === -1 ? 0 : idx;
 }
 
@@ -111,28 +71,75 @@ function findAdsetColumnIndex(headerRow: string[]): number {
  * Normaliza un nombre de adset antes de comparar. Aplica, en orden:
  *   1) recortar espacios al inicio/final
  *   2) colapsar espacios múltiples internos a uno solo
- *   3) forma Unicode NFC (ver nota abajo)
+ *   3) forma Unicode NFC
  *   4) mayúsculas (comparación case-insensitive)
  *
  * Por qué cada paso:
- * - NFC: el CSV exportado por Google Sheets y la respuesta de la API de Meta
- *   pueden representar el mismo carácter acentuado (ej. "ó") con secuencias de
+ * - NFC: la respuesta de Google Sheets y la de la API de Meta pueden
+ *   representar el mismo carácter acentuado (ej. "ó") con secuencias de
  *   bytes Unicode distintas (NFC vs NFD) — visualmente idénticas, pero un
  *   "===" exacto falla en silencio.
  * - Mayúsculas + espacios: para tolerar pequeñas inconsistencias de tipeo
  *   entre la planilla (mantenida a mano) y el nombre real en Meta, sin
- *   inventar ningún dato — solo evita que un espacio doble o una diferencia
- *   de mayúscula/minúscula bloqueen un match que a simple vista es el mismo
- *   ad set.
+ *   inventar ningún dato.
  */
 export function normalizeAdsetName(name: string): string {
   return name.trim().replace(/\s+/g, ' ').normalize('NFC').toUpperCase();
 }
 
-// Caché en memoria de muy corta duración. En Vercel, instancias serverless
-// "calientes" pueden atender varias requests seguidas — esto evita descargar
-// la misma planilla dos veces en la misma carga de página (una vez para
-// adsets-by-country, otra para ads-by-country).
+function getJwtClient(): JWT {
+  const clientEmail = process.env.GA4_CLIENT_EMAIL;
+  const privateKey = process.env.GA4_PRIVATE_KEY?.replace(/\\n/g, '\n');
+
+  if (!clientEmail || !privateKey) {
+    throw new Error('Faltan GA4_CLIENT_EMAIL o GA4_PRIVATE_KEY en las variables de entorno.');
+  }
+
+  return new JWT({
+    email: clientEmail,
+    key: privateKey,
+    scopes: ['https://www.googleapis.com/auth/spreadsheets.readonly'],
+  });
+}
+
+async function fetchSheetValues(): Promise<string[][]> {
+  const spreadsheetId = process.env.GOOGLE_SHEETS_SPREADSHEET_ID;
+  if (!spreadsheetId) {
+    throw new Error('Falta GOOGLE_SHEETS_SPREADSHEET_ID en las variables de entorno.');
+  }
+
+  const client = getJwtClient();
+  const tokenResponse = await client.getAccessToken();
+  const accessToken = tokenResponse?.token;
+
+  if (!accessToken) {
+    throw new Error('No se pudo obtener un access token de Google para leer el Sheet.');
+  }
+
+  const range = encodeURIComponent(TAB_NAME);
+  const url = `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/${range}?valueRenderOption=FORMATTED_VALUE`;
+
+  const res = await fetch(url, {
+    headers: { Authorization: `Bearer ${accessToken}` },
+    cache: 'no-store',
+  });
+
+  if (!res.ok) {
+    const errText = await res.text();
+    throw new Error(
+      `Google Sheets API error (${res.status}): ${errText}. Revisá que la planilla esté compartida con ${process.env.GA4_CLIENT_EMAIL} y que la Google Sheets API esté habilitada en el proyecto.`
+    );
+  }
+
+  const json = (await res.json()) as { values?: string[][] };
+  return json.values || [];
+}
+
+// Caché en memoria de muy corta duración — solo para no pegarle a la API de
+// Sheets dos veces en la misma carga de página (adsets-by-country + ads-by-country).
+// A diferencia del link público de antes, esto SÍ refleja cambios recientes:
+// como máximo hay 60 segundos de demora, nunca la propagación impredecible
+// de la caché de "Publicar en la Web".
 let cachedResult: { result: AdsetLocationsResult; fetchedAt: number } | null = null;
 const CACHE_TTL_MS = 60_000;
 
@@ -141,23 +148,8 @@ export async function fetchAdsetLocations(): Promise<AdsetLocationsResult> {
     return cachedResult.result;
   }
 
-  const url = process.env.ADSET_LOCATIONS_CSV_URL;
-  if (!url) {
-    throw new Error(
-      'Falta ADSET_LOCATIONS_CSV_URL en las variables de entorno (URL publicada como CSV de la pestaña CONCATENADO ETIQUETAS).'
-    );
-  }
+  const rows = await fetchSheetValues();
 
-  const res = await fetch(url, { cache: 'no-store' });
-  if (!res.ok) {
-    throw new Error('No se pudo descargar la tabla de país/ciudad por adset.');
-  }
-
-  const text = await res.text();
-  const rows = parseCsv(text);
-
-  // Primera fila = headers. La posición de la tabla real se detecta acá
-  // (ver findAdsetColumnIndex), no se asume fija.
   const headerRow = rows[0] || [];
   const colAdset = findAdsetColumnIndex(headerRow);
   const colCountryCode = colAdset + 1;
@@ -187,8 +179,7 @@ export async function fetchAdsetLocations(): Promise<AdsetLocationsResult> {
 
   for (const [adsetName, entries] of raw.entries()) {
     const unique = entries.filter(
-      (e, i) =>
-        entries.findIndex((e2) => e2.country === e.country && e2.city === e.city) === i
+      (e, i) => entries.findIndex((e2) => e2.country === e.country && e2.city === e.city) === i
     );
 
     if (unique.length > 1) {
@@ -206,9 +197,10 @@ export async function fetchAdsetLocations(): Promise<AdsetLocationsResult> {
     conflicts,
     debug: {
       rawRowCount: dataRows.length,
-      headerPreview: (rows[0] || []).slice(0, 12).join(' | '),
+      headerPreview: headerRow.slice(0, 12).join(' | '),
       sampleDataRow: (dataRows[0] || []).slice(0, 12).join(' | '),
       detectedAdsetColumnIndex: colAdset,
+      source: 'google-sheets-api',
     },
   };
 
