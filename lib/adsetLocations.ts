@@ -87,6 +87,24 @@ export function normalizeAdsetName(name: string): string {
   return name.trim().replace(/\s+/g, ' ').normalize('NFC').toUpperCase();
 }
 
+/**
+ * Normaliza un valor de país/ciudad SOLO para decidir si dos filas son "la
+ * misma" a efectos de detectar conflictos — saca tildes además de mayúsculas
+ * y espacios. Ej: "Córdoba" y "Cordoba" se consideran el mismo valor acá,
+ * aunque el que se guarda y se muestra en pantalla mantiene su tilde
+ * original tal cual está en la planilla (esto NO cambia el dato, solo evita
+ * que una diferencia de tilde entre dos filas duplicadas se marque como un
+ * conflicto real que no lo es).
+ */
+function normalizeForComparison(value: string): string {
+  return value
+    .trim()
+    .replace(/\s+/g, ' ')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '') // saca los diacríticos (tildes, diéresis)
+    .toUpperCase();
+}
+
 function getJwtClient(): JWT {
   const clientEmail = process.env.GA4_CLIENT_EMAIL;
   const privateKey = process.env.GA4_PRIVATE_KEY?.replace(/\\n/g, '\n');
@@ -179,7 +197,12 @@ export async function fetchAdsetLocations(): Promise<AdsetLocationsResult> {
 
   for (const [adsetName, entries] of raw.entries()) {
     const unique = entries.filter(
-      (e, i) => entries.findIndex((e2) => e2.country === e.country && e2.city === e.city) === i
+      (e, i) =>
+        entries.findIndex(
+          (e2) =>
+            normalizeForComparison(e2.country) === normalizeForComparison(e.country) &&
+            normalizeForComparison(e2.city) === normalizeForComparison(e.city)
+        ) === i
     );
 
     if (unique.length > 1) {
