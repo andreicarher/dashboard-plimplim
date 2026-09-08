@@ -84,18 +84,21 @@ function parseCsv(text: string): string[][] {
 }
 
 /**
- * IMPORTANTE sobre las columnas: confirmado con datos reales de producción
- * (fila de headers "ADSET | código país | PAIS | CIUDAD" recibida tal cual),
- * la pestaña publicada como CSV tiene EXACTAMENTE 4 columnas, en orden:
- * A=ADSET, B=código país, C=PAIS, D=CIUDAD — es decir, índices 0, 1, 2, 3.
- * (Una versión anterior de este archivo asumía que la tabla vivía en las
- * columnas G-J porque la hoja completa tenía varias tablas lado a lado;
- * la publicación actual solo expone estas 4 columnas limpias.)
+ * IMPORTANTE sobre las columnas: la hoja tiene VARIAS tablas distintas una
+ * junto a la otra (columna A = una lista vieja de "AdSet name" con su país,
+ * columna D = CAMPAÑA/OBJETIVO), que NO corresponden fila por fila con la
+ * tabla real. La tabla que de verdad mapea ADSET -> país/ciudad vive en las
+ * columnas G, H, I, J (índices 6, 7, 8, 9 empezando en 0) — confirmado
+ * descargando el CSV publicado directamente y mirando la fila de headers:
+ * "...,ADSET,código país,PAIS,CIUDAD,..." aparece en esa posición, no al
+ * principio de la fila. Si en algún momento la hoja se simplifica a solo
+ * esas 4 columnas (A-D), hay que volver a bajar estos índices a 0-3 — pero
+ * mientras conviva con las otras tablas, tiene que ser 6-9.
  */
-const COL_ADSET = 0;
-const COL_COUNTRY_CODE = 1;
-const COL_COUNTRY = 2;
-const COL_CITY = 3;
+const COL_ADSET = 6;
+const COL_COUNTRY_CODE = 7;
+const COL_COUNTRY = 8;
+const COL_CITY = 9;
 
 /**
  * Normaliza un nombre de adset antes de comparar. Aplica, en orden:
@@ -146,8 +149,8 @@ export async function fetchAdsetLocations(): Promise<AdsetLocationsResult> {
   const text = await res.text();
   const rows = parseCsv(text);
 
-  // Primera fila = headers (ADSET, código país, PAIS, CIUDAD). Se ignora por posición,
-  // no por nombre, para no depender de que el usuario no reordene columnas.
+  // Primera fila = headers. Se ignora por posición, no por nombre, para no
+  // depender de que el usuario no reordene columnas.
   const dataRows = rows.slice(1);
 
   const raw = new Map<string, AdsetLocation[]>();
