@@ -1,5 +1,6 @@
 'use client';
 
+import { downloadCsv } from '@/lib/csvExport';
 import { useEffect, useMemo, useState } from 'react';
 import {
   BarChart,
@@ -93,10 +94,26 @@ function presetToDates(preset: RangePreset): { since: string; until: string } {
 
   switch (preset) {
     case 'today':
+      const handleExportCsv = () => {
+  const rows = byCountry.map((r) => ({
+    País: r.country,
+    'Gasto (ARS)': Math.round(r.spend),
+    'Alcance': r.reach,
+    'Impresiones': r.impressions,
+    'Clicks': r.clicks,
+    'Landing page views': r.landingPageViews,
+    'Compras': r.purchases,
+    'Valor de compras (ARS)': Math.round(r.purchaseValue),
+  }));
+
+  const filename = `plimplim_${activeNav.replace(/\s+/g, '_')}_${dateRange.since}_a_${dateRange.until}.csv`;
+  downloadCsv(filename, rows);
+};
       return { since: fmtDate(today), until: fmtDate(today) };
     case 'yesterday': {
       const y = new Date(today);
       y.setDate(y.getDate() - 1);
+    
       return { since: fmtDate(y), until: fmtDate(y) };
     }
     case '7':
@@ -566,6 +583,16 @@ export default function Dashboard() {
                 </option>
               ))}
             </select>
+                          </select>
+
+              <button
+                onClick={handleExportCsv}
+                className="px-3 py-2 rounded-lg border border-line bg-panel text-ink text-sm font-medium hover:border-plimBlue transition"
+              >
+                ⬇ Exportar CSV
+              </button>
+
+              {preset === 'custom' && (
             {preset === 'custom' && (
               <div className="flex items-center gap-2">
                 <input
