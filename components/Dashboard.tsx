@@ -94,26 +94,10 @@ function presetToDates(preset: RangePreset): { since: string; until: string } {
 
   switch (preset) {
     case 'today':
-      const handleExportCsv = () => {
-  const rows = byCountry.map((r) => ({
-    País: r.country,
-    'Gasto (ARS)': Math.round(r.spend),
-    'Alcance': r.reach,
-    'Impresiones': r.impressions,
-    'Clicks': r.clicks,
-    'Landing page views': r.landingPageViews,
-    'Compras': r.purchases,
-    'Valor de compras (ARS)': Math.round(r.purchaseValue),
-  }));
-
-  const filename = `plimplim_${activeNav.replace(/\s+/g, '_')}_${dateRange.since}_a_${dateRange.until}.csv`;
-  downloadCsv(filename, rows);
-};
       return { since: fmtDate(today), until: fmtDate(today) };
     case 'yesterday': {
       const y = new Date(today);
       y.setDate(y.getDate() - 1);
-    
       return { since: fmtDate(y), until: fmtDate(y) };
     }
     case '7':
@@ -298,7 +282,6 @@ export default function Dashboard() {
       })
       .catch((err) => setAdsetsError(err.message))
       .finally(() => setAdsetsLoading(false));
-
   }, [preset, customSince, customUntil]);
 
   // Panel general de GA4: activo SOLO en la vista App — GA4 mide uso de la
@@ -559,6 +542,22 @@ export default function Dashboard() {
     ];
   }, [totals, activeNav, arsToUsd, ga4]);
 
+  const handleExportCsv = () => {
+    const rows = byCountry.map((r) => ({
+      País: r.country,
+      'Gasto (ARS)': Math.round(r.spend),
+      Alcance: r.reach,
+      Impresiones: r.impressions,
+      Clicks: r.clicks,
+      'Landing page views': r.landingPageViews,
+      Compras: r.purchases,
+      'Valor de compras (ARS)': Math.round(r.purchaseValue),
+    }));
+
+    const filename = `plimplim_${activeNav.replace(/\s+/g, '_')}_${dateRange.since}_a_${dateRange.until}.csv`;
+    downloadCsv(filename, rows);
+  };
+
   return (
     <div className="flex flex-col md:flex-row min-h-screen bg-paper">
       <Sidebar active={activeNav} onSelect={setActiveNav} />
@@ -572,18 +571,18 @@ export default function Dashboard() {
             </p>
           </div>
           <div className="flex flex-col items-end gap-2">
-            <select
-              value={preset}
-              onChange={(e) => setPreset(e.target.value as RangePreset)}
-              className="px-3 py-2 rounded-lg border border-line bg-panel text-ink text-sm font-medium min-w-[180px]"
-            >
-              {(Object.keys(RANGE_PRESET_LABELS) as RangePreset[]).map((p) => (
-                <option key={p} value={p}>
-                  {RANGE_PRESET_LABELS[p]}
-                </option>
-              ))}
-            </select>
-                          </select>
+            <div className="flex items-center gap-2">
+              <select
+                value={preset}
+                onChange={(e) => setPreset(e.target.value as RangePreset)}
+                className="px-3 py-2 rounded-lg border border-line bg-panel text-ink text-sm font-medium min-w-[180px]"
+              >
+                {(Object.keys(RANGE_PRESET_LABELS) as RangePreset[]).map((p) => (
+                  <option key={p} value={p}>
+                    {RANGE_PRESET_LABELS[p]}
+                  </option>
+                ))}
+              </select>
 
               <button
                 onClick={handleExportCsv}
@@ -591,8 +590,8 @@ export default function Dashboard() {
               >
                 ⬇ Exportar CSV
               </button>
+            </div>
 
-              {preset === 'custom' && (
             {preset === 'custom' && (
               <div className="flex items-center gap-2">
                 <input
