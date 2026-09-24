@@ -412,6 +412,20 @@ export default function Dashboard() {
     [filteredRows]
   );
 
+  // Campañas puntuales que aportan compras/valor de compras en el rango
+  // actual — reemplaza el ejemplo genérico "(ej. Chile)" por el nombre real
+  // de la(s) campaña(s) que sí tienen conversión de compra activa en Meta,
+  // calculado en vivo según los datos del período seleccionado.
+  const purchaseNote = useMemo(() => {
+    const campaignNames = new Set(
+      filteredRows.filter((r) => r.purchases > 0 || r.purchaseValue > 0).map((r) => r.campaignName)
+    );
+    if (campaignNames.size === 0) {
+      return 'Ninguna campaña activa en este rango tiene conversión de compra configurada en Meta';
+    }
+    return `Datos de: ${Array.from(campaignNames).join(', ')}`;
+  }, [filteredRows]);
+
   const fmtUsd = (arsAmount: number) =>
     arsToUsd
       ? (arsAmount * arsToUsd).toLocaleString('en-US', {
@@ -477,8 +491,8 @@ export default function Dashboard() {
         { label: 'Clics', value: fmtInt(t.clicks), accent: 'indigo' },
         { label: 'CTR', value: fmtPct(t.ctr), accent: 'amber' },
         { label: 'Landing page views', value: fmtInt(t.landingPageViews), accent: 'teal' },
-        { label: 'Compras', value: fmtInt(t.purchases), note: 'Solo campañas con conversión de compra activa en Meta (ej. Chile)', accent: 'teal' },
-        { label: 'Valor de las compras', value: fmtArs(t.purchaseValue), usdValue: fmtUsd(t.purchaseValue), note: 'Solo campañas con conversión de compra activa en Meta (ej. Chile)', accent: 'teal' },
+        { label: 'Compras', value: fmtInt(t.purchases), note: purchaseNote, accent: 'teal' },
+        { label: 'Valor de las compras', value: fmtArs(t.purchaseValue), usdValue: fmtUsd(t.purchaseValue), note: purchaseNote, accent: 'teal' },
       ];
     }
 
@@ -502,7 +516,7 @@ export default function Dashboard() {
       { label: 'CTR', value: fmtPct(t.ctr), accent: 'amber' },
       { label: 'Frecuencia', value: fmtDec(t.frequency), accent: 'indigo' },
     ];
-  }, [totals, activeNav, arsToUsd, ga4]);
+  }, [totals, activeNav, arsToUsd, ga4, purchaseNote]);
 
   // Exporta DOS tablas en un solo CSV: el resumen por país (lo mismo que se
   // ve en "Detalle por país") y el detalle completo por ad set/ciudad (todas
