@@ -1,6 +1,6 @@
 'use client';
 
-import { downloadCsv } from '@/lib/csvExport';
+import { downloadMultiSectionCsv } from '@/lib/csvExport';
 import { useEffect, useMemo, useState } from 'react';
 import {
   BarChart,
@@ -108,7 +108,6 @@ function presetToDates(preset: RangePreset): { since: string; until: string } {
       return { since: fmtDate(since), until: fmtDate(today) };
     }
     case 'lastMonth': {
-      // Mes calendario completo anterior: día 1 al último día del mes pasado.
       const firstOfThisMonth = new Date(today.getFullYear(), today.getMonth(), 1);
       const lastOfLastMonth = new Date(firstOfThisMonth);
       lastOfLastMonth.setDate(lastOfLastMonth.getDate() - 1);
@@ -120,8 +119,6 @@ function presetToDates(preset: RangePreset): { since: string; until: string } {
       return { since: fmtDate(firstOfThisMonth), until: fmtDate(today) };
     }
     case 'allTime':
-      // Sin fecha de inicio real de la cuenta a mano, se usa 2015-01-01 como
-      // "bien antes de que existiera cualquier campaña" (confirmado con Andrei).
       return { since: '2015-01-01', until: fmtDate(today) };
     default:
       return { since: fmtDate(today), until: fmtDate(today) };
@@ -139,8 +136,8 @@ interface Totals {
   purchaseValue: number;
   appInstalls: number;
   landingPageViews: number;
-  ctr: number; // %
-  cpm: number; // ARS
+  ctr: number;
+  cpm: number;
   frequency: number;
   roas: number;
 }
@@ -169,7 +166,6 @@ function computeTotals(rows: InsightRow[]): Totals {
     }
   );
 
-  // Derivadas SIEMPRE a partir de las sumas crudas, nunca promediando promedios.
   const ctr = sums.impressions > 0 ? (sums.clicks / sums.impressions) * 100 : 0;
   const cpm = sums.impressions > 0 ? (sums.spend / sums.impressions) * 1000 : 0;
   const frequency = sums.reach > 0 ? sums.impressions / sums.reach : 0;
@@ -182,7 +178,6 @@ function fmtArs(n: number) {
   return n.toLocaleString('es-AR', { style: 'currency', currency: 'ARS', maximumFractionDigits: 0 });
 }
 
-/** Tooltip del gráfico de barras, formateado como moneda ARS en vez del número crudo. */
 function ChartTooltip({ active, payload, label }: any) {
   if (!active || !payload || !payload.length) return null;
   return (
@@ -209,9 +204,6 @@ export default function Dashboard() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // Datos a nivel AD SET (con país/ciudad cruzados desde la planilla) — se
-  // comparten entre el gráfico "Gasto por país", el desglose por ciudad y el
-  // ranking de mejores ad sets, para no repetir el fetch tres veces.
   const [adsetRows, setAdsetRows] = useState<AdsetRow[]>([]);
   const [adsetsConflicts, setAdsetsConflicts] = useState<
     Array<{ adsetName: string; entries: Array<{ countryCode: string; country: string; city: string }> }>
@@ -284,8 +276,6 @@ export default function Dashboard() {
       .finally(() => setAdsetsLoading(false));
   }, [preset, customSince, customUntil]);
 
-  // Panel general de GA4: activo SOLO en la vista App — GA4 mide uso de la
-  // app en sí, no tiene sentido mostrarlo en Shows/Canal WA/Campañas Temporada.
   useEffect(() => {
     if (activeNav !== 'App') {
       setGa4(null);
@@ -306,10 +296,6 @@ export default function Dashboard() {
       .catch((err) => setGa4Error(err.message));
   }, [activeNav, dateRange, preset]);
 
-  // Fetch de anuncios individuales SOLO en Shows y Canal WA — es la llamada
-  // más pesada a Meta (nivel "ad", el más granular), y pedirla en cada carga
-  // sin importar la vista contribuía a agotar el límite de peticiones de la
-  // app. Solo se necesita para "Mejores anuncios", exclusivo de esas dos vistas.
   useEffect(() => {
     if (activeNav !== 'Canal WA' && activeNav !== 'Shows') {
       setAdRows([]);
@@ -331,8 +317,6 @@ export default function Dashboard() {
       .finally(() => setAdsLoading(false));
   }, [activeNav, dateRange, preset]);
 
-  // Desglose por país de GA4 (dimensión nativa de GA4, no la de Meta) —
-  // solo se necesita en la vista App, así que solo se pide ahí.
   useEffect(() => {
     if (activeNav !== 'App') {
       setGa4CountryRows([]);
@@ -413,9 +397,6 @@ export default function Dashboard() {
     [adRows, activeNav]
   );
 
-  // Gasto por país usando el país REAL por ad set (vía planilla), no el nombre
-  // de campaña. Esto es lo que permite desglosar campañas "RO_LATAM_..." en
-  // sus países reales en vez de agruparlas como "LATAM (consolidado)".
   const spendByCountry = useMemo(() => {
     const map = new Map<string, number>();
     for (const r of filteredAdsetRows) {
@@ -444,12 +425,6 @@ export default function Dashboard() {
   const fmtPct = (n: number) => `${n.toLocaleString('es-AR', { maximumFractionDigits: 2 })}%`;
   const fmtDec = (n: number) => n.toLocaleString('es-AR', { maximumFractionDigits: 2 });
 
-  // Tarjetas de KPI específicas por línea de negocio, según lo pedido:
-  // App: Inversión, Alcance, Descargas, Compras en la app, Valor de las compras, ROAS
-  // Shows: Inversión (ARS + USD debajo), Alcance, Impresiones, Frecuencia, CPM (ARS + USD debajo),
-  //        Clics, CTR, Landing page views, Compras
-  // Canal WA: Inversión, Alcance, Impresiones, CPM, CTR, Frecuencia, Visitas a la página
-  // Campañas Temporada: Inversión, Alcance, Impresiones, CPM, CTR, Frecuencia
   interface KpiCardSpec {
     label: string;
     value: string;
@@ -462,17 +437,6 @@ export default function Dashboard() {
     const t = totals;
 
     if (activeNav === 'App') {
-      // Inversión y Alcance vienen de Meta (son métricas de entrega de la
-      // pauta). Descargas, compradores y valor de compras vienen de GA4 —
-      // porque son eventos de USO de la app en sí, y GA4/Firebase sí los está
-      // registrando correctamente (a diferencia de Meta, que para esta cuenta
-      // no trae action_type de instalación/compra en absoluto).
-      //
-      // IMPORTANTE sobre moneda: purchaseRevenue de GA4 viene nativamente en
-      // USD (no en ARS como el resto del dashboard). Por eso NO se le aplica
-      // fmtUsd (que espera un monto en ARS y lo convierte a USD) — ya está en
-      // USD. Para mostrar el equivalente en ARS (y para que el ROAS compare
-      // manzanas con manzanas) se hace la conversión inversa: ARS = USD / tasa.
       const ga4Installs = ga4?.keyEventsFirstOpen ?? 0;
       const ga4InAppPurchases = ga4?.keyEventsInAppPurchase ?? 0;
       const ga4RevenueUsd = ga4?.purchaseRevenue ?? 0;
@@ -483,7 +447,6 @@ export default function Dashboard() {
       const fmtUsdDirect = (usd: number) =>
         usd.toLocaleString('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 });
 
-      // Gasto de Meta convertido a USD para poder dividir USD/USD, no USD/ARS.
       const spendUsd = arsToUsd ? t.spend * arsToUsd : null;
       const roasGa4 = spendUsd && spendUsd > 0 ? ga4RevenueUsd / spendUsd : 0;
 
@@ -531,7 +494,6 @@ export default function Dashboard() {
       ];
     }
 
-    // Campañas Temporada
     return [
       { label: 'Inversión', value: fmtArs(t.spend), usdValue: fmtUsd(t.spend), accent: 'coral' },
       { label: 'Alcance', value: fmtInt(t.reach), accent: 'indigo' },
@@ -542,8 +504,13 @@ export default function Dashboard() {
     ];
   }, [totals, activeNav, arsToUsd, ga4]);
 
+  // Exporta DOS tablas en un solo CSV: el resumen por país (lo mismo que se
+  // ve en "Detalle por país") y el detalle completo por ad set/ciudad (todas
+  // las filas de adsetRows para la línea de negocio activa, sin importar qué
+  // país tengas seleccionado en el filtro de "Desglose por país y ciudad" —
+  // acá va TODO, no solo lo que estás mirando en pantalla en ese momento).
   const handleExportCsv = () => {
-    const rows = byCountry.map((r) => ({
+    const countrySummaryRows = byCountry.map((r) => ({
       País: r.country,
       'Gasto (ARS)': Math.round(r.spend),
       Alcance: r.reach,
@@ -554,8 +521,27 @@ export default function Dashboard() {
       'Valor de compras (ARS)': Math.round(r.purchaseValue),
     }));
 
+    const adsetDetailRows = filteredAdsetRows.map((r) => ({
+      País: r.country,
+      Ciudad: r.city || 'Sin match',
+      Campaña: r.campaignName,
+      'Ad set': r.adsetName,
+      Estado: r.status,
+      'Gasto (ARS)': Math.round(r.spend),
+      Alcance: r.reach,
+      Impresiones: r.impressions,
+      Clicks: r.clicks,
+      'Landing page views': r.landingPageViews,
+      Compras: r.purchases,
+      'Valor de compras (ARS)': Math.round(r.purchaseValue),
+    }));
+
     const filename = `plimplim_${activeNav.replace(/\s+/g, '_')}_${dateRange.since}_a_${dateRange.until}.csv`;
-    downloadCsv(filename, rows);
+
+    downloadMultiSectionCsv(filename, [
+      { title: `Detalle por país — ${activeNav}`, rows: countrySummaryRows },
+      { title: `Detalle por ad set y ciudad — ${activeNav}`, rows: adsetDetailRows },
+    ]);
   };
 
   return (
