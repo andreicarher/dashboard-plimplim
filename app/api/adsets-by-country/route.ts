@@ -1,7 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { fetchMetaAdsetInsights, fetchAdsetStatuses, getActionValue, getActionMonetaryValue } from '@/lib/metaApi';
+import {
+  fetchMetaAdsetInsights,
+  fetchAdsetStatuses,
+  getActionValue,
+  getActionMonetaryValue,
+} from '@/lib/metaApi';
 import { fetchAdsetLocations, normalizeAdsetName } from '@/lib/adsetLocations';
 import { classifyCountry, classifyBusinessLine } from '@/lib/classify';
+import { getCampaignLabel } from '@/lib/campaignOverrides';
 
 export const dynamic = 'force-dynamic';
 
@@ -27,6 +33,8 @@ export async function GET(req: NextRequest) {
     let unmatchedCount = 0;
 
     const enriched = rows.map((row) => {
+      // La ciudad/país se busca por el ADSET al que pertenece, no por el
+      // nombre de campaña — la planilla mapea a nivel adset.
       const location = locations.map.get(normalizeAdsetName(row.adset_name));
 
       let country: string;
@@ -34,13 +42,13 @@ export async function GET(req: NextRequest) {
       let countryConfidence: 'high' | 'low';
 
       if (location) {
-        // La planilla es la fuente autoritativa de ciudad — y de país cuando hay match exacto.
         country = location.country;
         city = location.city;
         countryConfidence = 'high';
       } else {
-        // Sin match en la planilla: no hay ciudad posible, y el país cae al clasificador
-        // por nombre de campaña (misma lógica que el resto del dashboard), como respaldo.
+        // Sin match en la planilla: el país cae al clasificador por nombre
+        // de campaña (mismo sistema que el resto del dashboard) como
+        // respaldo, y no hay ciudad posible.
         const fallback = classifyCountry(row.campaign_name);
         country = fallback.countryLabel;
         city = null;
@@ -52,11 +60,16 @@ export async function GET(req: NextRequest) {
         adsetId: row.adset_id,
         adsetName: row.adset_name,
         campaignId: row.campaign_id,
-        campaignName: row.campaign_name,
+        // IMPORTANTE: el override de campaña (ver lib/campaignOverrides.ts)
+        // solo cambia esta ETIQUETA visible — la clasificación de línea de
+        // negocio y país (líneas de abajo) sigue usando row.campaign_name
+        // real, nunca el nombre reemplazado, para no romper esa lógica.
+        campaignName: getCampaignLabel(row.adset_name, row.campaign_name),
         businessLine: classifyBusinessLine(row.campaign_name),
         country,
         city,
         countryConfidence,
+        status: statuses.get(row.adset_id) || 'DESCONOCIDO',
         spend: parseFloat(row.spend || '0'),
         impressions: parseInt(row.impressions || '0', 10),
         clicks: parseInt(row.clicks || '0', 10),
@@ -65,7 +78,6 @@ export async function GET(req: NextRequest) {
         purchaseValue: getActionMonetaryValue(row, 'omni_purchase'),
         appInstalls: getActionValue(row, 'omni_app_install'),
         landingPageViews: getActionValue(row, 'landing_page_view'),
-        status: statuses.get(row.adset_id) || 'DESCONOCIDO',
       };
     });
 
