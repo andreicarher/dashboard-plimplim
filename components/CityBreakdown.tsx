@@ -73,11 +73,6 @@ interface ColumnDef {
   render: (r: AdsetRow, arsToUsd: number | null) => React.ReactNode;
 }
 
-/**
- * Columnas específicas por línea de negocio, calculadas por FILA (por ad set).
- * Las métricas de COSTO (Inversión, CPM) muestran ARS arriba y USD debajo en
- * una sola columna combinada — nunca en columnas separadas.
- */
 function getColumns(businessLine: NavItem): ColumnDef[] {
   if (businessLine === 'App') {
     return [
@@ -135,7 +130,6 @@ function getColumns(businessLine: NavItem): ColumnDef[] {
     ];
   }
 
-  // Campañas Temporada
   return [
     { label: 'Inversión', render: (r, usd) => <CostCell ars={r.spend} arsToUsd={usd} /> },
     { label: 'Alcance', render: (r) => fmtInt(r.reach) },
@@ -277,7 +271,6 @@ export default function CityBreakdown({
         </div>
       </div>
 
-      {/* Diagnóstico: cuántas entradas de la planilla de ciudades se cargaron realmente. */}
       <div className="mb-4 text-xs text-muted">
         📋 Planilla de ciudades:{' '}
         {locationsLoaded === null
@@ -340,6 +333,7 @@ export default function CityBreakdown({
             <thead>
               <tr className="bg-paper text-left text-muted uppercase text-xs tracking-wide">
                 <th className="px-4 py-3 font-medium whitespace-nowrap">Ciudad</th>
+                <th className="px-4 py-3 font-medium whitespace-nowrap">Campaña</th>
                 <th className="px-4 py-3 font-medium whitespace-nowrap">Ad set</th>
                 <th className="px-4 py-3 font-medium whitespace-nowrap">Estado</th>
                 {columns.map((c) => (
@@ -354,6 +348,9 @@ export default function CityBreakdown({
                 <tr key={r.adsetId} className="border-t border-line">
                   <td className="px-4 py-3 font-medium whitespace-nowrap">
                     {r.city || <span className="text-plimOrange">Sin match</span>}
+                  </td>
+                  <td className="px-4 py-3 text-muted font-mono text-xs whitespace-nowrap">
+                    {r.campaignName}
                   </td>
                   <td className="px-4 py-3 text-muted font-mono text-xs whitespace-nowrap">
                     {r.adsetName}
