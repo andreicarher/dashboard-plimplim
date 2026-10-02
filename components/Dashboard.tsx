@@ -28,6 +28,7 @@ interface InsightRow {
   spend: number;
   impressions: number;
   clicks: number;
+  uniqueClicks: number;
   reach: number;
   purchases: number;
   purchaseValue: number;
@@ -131,6 +132,7 @@ interface Totals {
   spend: number;
   impressions: number;
   clicks: number;
+  uniqueClicks: number;
   reach: number;
   purchases: number;
   purchaseValue: number;
@@ -140,6 +142,7 @@ interface Totals {
   cpm: number;
   frequency: number;
   roas: number;
+  cpcUnique: number; // Gasto / Clics únicos — ARS
 }
 
 function computeTotals(rows: InsightRow[]): Totals {
@@ -148,6 +151,7 @@ function computeTotals(rows: InsightRow[]): Totals {
       spend: acc.spend + r.spend,
       impressions: acc.impressions + r.impressions,
       clicks: acc.clicks + r.clicks,
+      uniqueClicks: acc.uniqueClicks + r.uniqueClicks,
       reach: acc.reach + r.reach,
       purchases: acc.purchases + r.purchases,
       purchaseValue: acc.purchaseValue + r.purchaseValue,
@@ -158,6 +162,7 @@ function computeTotals(rows: InsightRow[]): Totals {
       spend: 0,
       impressions: 0,
       clicks: 0,
+      uniqueClicks: 0,
       reach: 0,
       purchases: 0,
       purchaseValue: 0,
@@ -170,8 +175,11 @@ function computeTotals(rows: InsightRow[]): Totals {
   const cpm = sums.impressions > 0 ? (sums.spend / sums.impressions) * 1000 : 0;
   const frequency = sums.reach > 0 ? sums.impressions / sums.reach : 0;
   const roas = sums.spend > 0 ? sums.purchaseValue / sums.spend : 0;
+  // CPC único = gasto total / clics únicos totales — nunca promediando CPCs
+  // individuales, igual criterio que CTR/CPM/frecuencia arriba.
+  const cpcUnique = sums.uniqueClicks > 0 ? sums.spend / sums.uniqueClicks : 0;
 
-  return { ...sums, ctr, cpm, frequency, roas };
+  return { ...sums, ctr, cpm, frequency, roas, cpcUnique };
 }
 
 function fmtArs(n: number) {
@@ -515,6 +523,8 @@ export default function Dashboard() {
       { label: 'CPM', value: fmtArs(t.cpm), usdValue: fmtUsd(t.cpm), accent: 'amber' },
       { label: 'CTR', value: fmtPct(t.ctr), accent: 'amber' },
       { label: 'Frecuencia', value: fmtDec(t.frequency), accent: 'indigo' },
+      { label: 'Clics únicos', value: fmtInt(t.uniqueClicks), accent: 'indigo' },
+      { label: 'CPC único', value: fmtArs(t.cpcUnique), usdValue: fmtUsd(t.cpcUnique), accent: 'amber' },
     ];
   }, [totals, activeNav, arsToUsd, ga4, purchaseNote]);
 
