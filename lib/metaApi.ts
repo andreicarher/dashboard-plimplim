@@ -6,6 +6,7 @@ export interface MetaInsightRow {
   spend: string;
   impressions: string;
   clicks: string;
+  unique_clicks?: string;
   reach?: string;
   actions?: Array<{ action_type: string; value: string }>;
   action_values?: Array<{ action_type: string; value: string }>;
@@ -47,6 +48,7 @@ export async function fetchMetaInsights(params: {
     'spend',
     'impressions',
     'clicks',
+    'unique_clicks',
     'reach',
     'actions',
     'action_values',
@@ -85,6 +87,7 @@ export interface MetaAdsetInsightRow {
   spend: string;
   impressions: string;
   clicks: string;
+  unique_clicks?: string;
   reach?: string;
   actions?: Array<{ action_type: string; value: string }>;
   action_values?: Array<{ action_type: string; value: string }>;
@@ -123,6 +126,7 @@ export async function fetchMetaAdsetInsights(params: {
     'spend',
     'impressions',
     'clicks',
+    'unique_clicks',
     'reach',
     'actions',
     'action_values',
@@ -169,11 +173,6 @@ export function getActionMonetaryValue(row: ActionsShape, actionType: string): n
   return match ? parseFloat(match.value) : 0;
 }
 
-/**
- * Trae el estado ACTUAL (no histórico) de cada ad set: ACTIVE, PAUSED, etc.
- * Es un atributo de configuración, no una métrica de un rango de fechas —
- * por eso viene de un endpoint distinto al de insights.
- */
 /**
  * Trae el estado ACTUAL (no histórico) de entidades de Meta: ACTIVE, PAUSED,
  * etc. Es un atributo de configuración, no una métrica de un rango de fechas
