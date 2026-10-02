@@ -73,6 +73,7 @@ export async function GET(req: NextRequest) {
         spend: parseFloat(row.spend || '0'),
         impressions: parseInt(row.impressions || '0', 10),
         clicks: parseInt(row.clicks || '0', 10),
+        uniqueClicks: parseInt(row.unique_clicks || '0', 10),
         reach: parseInt(row.reach || '0', 10),
         purchases: getActionValue(row, 'omni_purchase'),
         purchaseValue: getActionMonetaryValue(row, 'omni_purchase'),
