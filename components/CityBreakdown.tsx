@@ -16,6 +16,7 @@ export interface AdsetRow {
   spend: number;
   impressions: number;
   clicks: number;
+  uniqueClicks: number;
   reach: number;
   purchases: number;
   purchaseValue: number;
@@ -147,6 +148,13 @@ function getColumns(businessLine: NavItem): ColumnDef[] {
     {
       label: 'Frecuencia',
       render: (r) => fmtDec(r.reach > 0 ? r.impressions / r.reach : 0),
+    },
+    { label: 'Clics únicos', render: (r) => fmtInt(r.uniqueClicks) },
+    {
+      label: 'CPC único',
+      render: (r, usd) => (
+        <CostCell ars={r.uniqueClicks > 0 ? r.spend / r.uniqueClicks : 0} arsToUsd={usd} />
+      ),
     },
   ];
 }
