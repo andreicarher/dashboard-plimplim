@@ -248,6 +248,7 @@ export default function Dashboard() {
     setError(null);
     setAdsetsLoading(true);
     setAdsetsError(null);
+    setAdsetRows([]);
 
     Promise.all([
       fetch(`/api/meta-insights?since=${since}&until=${until}`).then(async (res) => {
@@ -346,9 +347,44 @@ export default function Dashboard() {
       .finally(() => setGa4CountryLoading(false));
   }, [activeNav, dateRange, preset]);
 
+  // BANDAI se marca por AD SET (lista en lib/campaignOverrides.ts), pero las
+  // fichas y el "Detalle por país" trabajan a nivel CAMPAÑA. Entonces, una
+  // campaña cuyos ad sets (con gasto en el rango) son TODOS de BANDAI se pasa
+  // entera a la pestaña BANDAI. Si una campaña mezcla ad sets de BANDAI con
+  // otros, sus totales a nivel campaña no se pueden partir (Meta no da el
+  // alcance por ad set sin duplicar): se queda en su línea original y se
+  // avisa en pantalla. El desglose por ad set y el gráfico de gasto por país
+  // sí los separan bien, porque trabajan a nivel ad set.
+  const { classifiedRows, mixedCampaigns } = useMemo(() => {
+    const byCampaign = new Map<string, { bandai: number; other: number }>();
+    for (const a of adsetRows) {
+      const entry = byCampaign.get(a.campaignId) || { bandai: 0, other: 0 };
+      if (a.businessLine === 'BANDAI') entry.bandai += 1;
+      else entry.other += 1;
+      byCampaign.set(a.campaignId, entry);
+    }
+
+    const mixed: Array<{ campaignName: string; originalLine: NavItem }> = [];
+    const classified = rows.map((r) => {
+      const entry = byCampaign.get(r.campaignId);
+      if (!entry || entry.bandai === 0 || r.businessLine === 'BANDAI') return r;
+      if (entry.other === 0) return { ...r, businessLine: 'BANDAI' as NavItem };
+      mixed.push({ campaignName: r.campaignName, originalLine: r.businessLine });
+      return r;
+    });
+
+    return { classifiedRows: classified, mixedCampaigns: mixed };
+  }, [rows, adsetRows]);
+
+  const mixedForThisView = useMemo(
+    () =>
+      mixedCampaigns.filter((m) => activeNav === 'BANDAI' || m.originalLine === activeNav),
+    [mixedCampaigns, activeNav]
+  );
+
   const filteredRows = useMemo(
-    () => rows.filter((r) => r.businessLine === activeNav),
-    [rows, activeNav]
+    () => classifiedRows.filter((r) => r.businessLine === activeNav),
+    [classifiedRows, activeNav]
   );
 
   const totals = useMemo(() => computeTotals(filteredRows), [filteredRows]);
@@ -516,6 +552,7 @@ export default function Dashboard() {
       ];
     }
 
+    // Campañas Temporada y BANDAI: mismas fichas (incluye Clics únicos y CPC único).
     return [
       { label: 'Inversión', value: fmtArs(t.spend), usdValue: fmtUsd(t.spend), accent: 'coral' },
       { label: 'Alcance', value: fmtInt(t.reach), accent: 'indigo' },
@@ -528,15 +565,73 @@ export default function Dashboard() {
     ];
   }, [totals, activeNav, arsToUsd, ga4, purchaseNote]);
 
-  // Exporta DOS tablas en un solo CSV: el resumen por país (lo mismo que se
-  // ve en "Detalle por país") y el detalle completo por ad set/ciudad (todas
-  // las filas de adsetRows para la línea de negocio activa, sin importar qué
-  // país tengas seleccionado en el filtro de "Desglose por país y ciudad" —
-  // acá va TODO, no solo lo que estás mirando en pantalla en ese momento).
+  // Exporta VARIAS tablas en un solo CSV (de la vista y el rango activos):
+  //   1) Resumen de inversión: gasto total en ARS y USD + tipo de cambio usado
+  //   2) Gasto por campaña (ARS y USD, con fila TOTAL)
+  //   3) Detalle por país (con gasto en USD)
+  //   4) Detalle por ad set y ciudad (con gasto en USD) — TODAS las filas de la
+  //      línea de negocio activa, sin importar el país elegido en pantalla.
+  // El USD se calcula con el mismo tipo de cambio que muestran las fichas;
+  // si el tipo de cambio no cargó, las columnas USD quedan vacías (no se inventa).
   const handleExportCsv = () => {
+    const round2 = (n: number) => Math.round(n * 100) / 100;
+    const toUsd = (ars: number): number | string => (arsToUsd ? round2(ars * arsToUsd) : '');
+
+    const summaryRows = [
+      {
+        Rango: `${dateRange.since} a ${dateRange.until}`,
+        'Gasto total (ARS)': Math.round(totals.spend),
+        'Gasto total (USD)': toUsd(totals.spend),
+        'Tipo de cambio (ARS por 1 USD)': arsToUsd ? round2(1 / arsToUsd) : 'no disponible',
+      },
+    ];
+
+    const campaignMap = new Map<
+      string,
+      { name: string; country: string; spend: number; reach: number; impressions: number; clicks: number }
+    >();
+    for (const r of filteredRows) {
+      const existing = campaignMap.get(r.campaignId) || {
+        name: r.campaignName,
+        country: r.country,
+        spend: 0,
+        reach: 0,
+        impressions: 0,
+        clicks: 0,
+      };
+      existing.spend += r.spend;
+      existing.reach += r.reach;
+      existing.impressions += r.impressions;
+      existing.clicks += r.clicks;
+      campaignMap.set(r.campaignId, existing);
+    }
+    const campaignRows: Array<Record<string, string | number>> = Array.from(campaignMap.values())
+      .sort((a, b) => b.spend - a.spend)
+      .map((c) => ({
+        Campaña: c.name,
+        País: c.country,
+        'Gasto (ARS)': Math.round(c.spend),
+        'Gasto (USD)': toUsd(c.spend),
+        Alcance: c.reach,
+        Impresiones: c.impressions,
+        Clicks: c.clicks,
+      }));
+    if (campaignRows.length > 0) {
+      campaignRows.push({
+        Campaña: 'TOTAL',
+        País: '',
+        'Gasto (ARS)': Math.round(totals.spend),
+        'Gasto (USD)': toUsd(totals.spend),
+        Alcance: '',
+        Impresiones: totals.impressions,
+        Clicks: totals.clicks,
+      });
+    }
+
     const countrySummaryRows = byCountry.map((r) => ({
       País: r.country,
       'Gasto (ARS)': Math.round(r.spend),
+      'Gasto (USD)': toUsd(r.spend),
       Alcance: r.reach,
       Impresiones: r.impressions,
       Clicks: r.clicks,
@@ -552,6 +647,7 @@ export default function Dashboard() {
       'Ad set': r.adsetName,
       Estado: r.status,
       'Gasto (ARS)': Math.round(r.spend),
+      'Gasto (USD)': toUsd(r.spend),
       Alcance: r.reach,
       Impresiones: r.impressions,
       Clicks: r.clicks,
@@ -563,6 +659,8 @@ export default function Dashboard() {
     const filename = `plimplim_${activeNav.replace(/\s+/g, '_')}_${dateRange.since}_a_${dateRange.until}.csv`;
 
     downloadMultiSectionCsv(filename, [
+      { title: `Resumen de inversión — ${activeNav}`, rows: summaryRows },
+      { title: `Gasto por campaña — ${activeNav}`, rows: campaignRows },
       { title: `Detalle por país — ${activeNav}`, rows: countrySummaryRows },
       { title: `Detalle por ad set y ciudad — ${activeNav}`, rows: adsetDetailRows },
     ]);
@@ -638,7 +736,24 @@ export default function Dashboard() {
           </div>
         )}
 
-        {loading ? (
+        {mixedForThisView.length > 0 && (
+          <div className="mb-6 rounded-xl border border-plimOrange bg-plimOrange/10 text-ink px-4 py-3 text-sm">
+            ⚠ <strong>{mixedForThisView.length}</strong> campaña(s) mezclan ad sets de BANDAI con
+            ad sets de otro tipo. Los datos a nivel campaña (fichas, &quot;Detalle por país&quot; y
+            &quot;Gasto por campaña&quot; del CSV) no se pueden dividir por ad set, así que esas
+            campañas se cuentan completas en su línea original. El desglose por ad set y el gráfico
+            de gasto por país sí los separan correctamente.
+            <ul className="mt-2 list-disc list-inside space-y-1">
+              {mixedForThisView.map((m) => (
+                <li key={m.campaignName} className="font-mono text-xs">
+                  {m.campaignName} <span className="font-sans text-muted">(línea original: {m.originalLine})</span>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+
+        {loading || adsetsLoading ? (
           <p className="text-muted text-sm">Cargando datos en vivo desde Meta y GA4…</p>
         ) : filteredRows.length === 0 ? (
           <p className="text-muted text-sm">
