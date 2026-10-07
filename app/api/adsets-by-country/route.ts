@@ -7,7 +7,7 @@ import {
 } from '@/lib/metaApi';
 import { fetchAdsetLocations, normalizeAdsetName } from '@/lib/adsetLocations';
 import { classifyCountry, classifyBusinessLine } from '@/lib/classify';
-import { getCampaignLabel } from '@/lib/campaignOverrides';
+import { getCampaignLabel, isBandaiAdset } from '@/lib/campaignOverrides';
 
 export const dynamic = 'force-dynamic';
 
@@ -65,7 +65,11 @@ export async function GET(req: NextRequest) {
         // negocio y país (líneas de abajo) sigue usando row.campaign_name
         // real, nunca el nombre reemplazado, para no romper esa lógica.
         campaignName: getCampaignLabel(row.adset_name, row.campaign_name),
-        businessLine: classifyBusinessLine(row.campaign_name),
+        // BANDAI se decide por ad set (lista en campaignOverrides.ts) o, si la
+        // campaña misma tiene "bandai" en el nombre, por classifyBusinessLine.
+        businessLine: isBandaiAdset(row.adset_name)
+          ? 'BANDAI'
+          : classifyBusinessLine(row.campaign_name),
         country,
         city,
         countryConfidence,
