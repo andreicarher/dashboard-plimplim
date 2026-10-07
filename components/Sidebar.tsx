@@ -2,13 +2,14 @@
 
 import Image from 'next/image';
 
-export type NavItem = 'Shows' | 'App' | 'Canal WA' | 'Campañas Temporada';
+export type NavItem = 'Shows' | 'App' | 'Canal WA' | 'Campañas Temporada' | 'BANDAI';
 
 const NAV_ITEMS: { key: NavItem; icon: string }[] = [
   { key: 'Shows', icon: '🎪' },
   { key: 'App', icon: '📱' },
   { key: 'Canal WA', icon: '💬' },
-  { key: 'Campañas Temporada', icon: '🎉' },
+     { key: 'Campañas Temporada', icon: '🎉' },
+   { key: 'BANDAI', icon: '🧸' },
 ];
 
 interface SidebarProps {
