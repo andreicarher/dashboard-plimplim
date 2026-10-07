@@ -40,3 +40,14 @@ export function getCampaignLabel(adsetName: string, realCampaignName: string): s
   const override = NORMALIZED_OVERRIDES.get(normalizeAdsetName(adsetName));
   return override || realCampaignName;
 }
+
+/**
+ * ¿Este ad set pertenece a BANDAI? Usa la MISMA lista de arriba: si un ad set
+ * está en CAMPAIGN_LABEL_OVERRIDES con la etiqueta 'BANDAI', además de
+ * mostrarse como "BANDAI" en la columna Campaña, se cuenta dentro de la
+ * pestaña BANDAI (y deja de contarse en Campañas Temporada). Así hay UN solo
+ * lugar para mantener: sumás el ad set a la lista y listo.
+ */
+export function isBandaiAdset(adsetName: string): boolean {
+  return NORMALIZED_OVERRIDES.get(normalizeAdsetName(adsetName)) === 'BANDAI';
+}
