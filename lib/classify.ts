@@ -1,22 +1,22 @@
 /**
- * Clasificación de campañas por país y por tipo de objetivo (Show / Nueva App / Canal WA).
+ * Clasificación de campañas por país y por línea de negocio
+ * (Shows / App / Canal WA / BANDAI / Campañas Temporada).
  *
- * IMPORTANTE — por qué esto NO se basa únicamente en el prefijo de 2-3 letras:
+ * IMPORTANTE — por qué esto NO se basa únicamente en el prefijo de 2-3 letras
+ * para el país:
  * En la cuenta real de Plim Plim conviven códigos inconsistentes históricos:
  *   - Chile aparece como "CH", "CHI" y "CL" en distintas campañas.
  *   - México aparece como "MX" y "MEX".
  *   - "PA" se ha usado tanto para Paraguay como (potencialmente) Panamá.
  *   - "PER" y "PY" pueden confundirse a simple vista (Perú vs Paraguay).
  *
- * Por eso la estrategia es:
+ * Por eso la estrategia para país es:
  *   1) Buscar primero el NOMBRE COMPLETO del país en el texto de la campaña
  *      (ej. "Argentina", "México", "Chile", "Paraguay") — esto es inequívoco.
  *   2) Si no hay nombre completo, usar el prefijo RO_XX_ como respaldo,
  *      pero marcando la clasificación como "low confidence".
  *   3) Si nada matchea, la campaña va a "Sin clasificar" — NUNCA se asigna
- *      un país a la fuerza. Esto protege la integridad de los datos: es
- *      preferible ver un bucket "sin clasificar" y revisarlo a mano, que
- *      mezclar el gasto de un país con otro silenciosamente.
+ *      un país a la fuerza.
  */
 
 export type CountryCode =
@@ -41,7 +41,6 @@ export interface CountryMatch {
 }
 
 // Paso 1: nombres completos (o variantes muy inequívocas), sin acentos, en minúsculas.
-// El orden importa: los más específicos van antes que los prefijos genéricos.
 const FULL_NAME_PATTERNS: Array<{ pattern: RegExp; country: CountryCode; label: string }> = [
   { pattern: /\bargentin/, country: 'AR', label: 'Argentina' },
   { pattern: /\bmexic|\bméxic/, country: 'MX', label: 'México' },
@@ -56,15 +55,13 @@ const FULL_NAME_PATTERNS: Array<{ pattern: RegExp; country: CountryCode; label: 
 ];
 
 // Paso 2: prefijos de campaña RO_XX_ como respaldo (baja confianza).
-// Cada código puede mapear a MÁS de un país real observado en la cuenta —
-// por eso estos van a "low confidence" y deben revisarse.
 const PREFIX_PATTERNS: Array<{ pattern: RegExp; country: CountryCode; label: string }> = [
   { pattern: /^RO_AR_/i, country: 'AR', label: 'Argentina' },
   { pattern: /^RO_(MX|MEX)_/i, country: 'MX', label: 'México' },
   { pattern: /^RO_(CH|CHI|CL)_/i, country: 'CL', label: 'Chile' },
   { pattern: /^RO_CO_/i, country: 'CO', label: 'Colombia' },
   { pattern: /^RO_(PE|PER)_/i, country: 'PE', label: 'Perú' },
-  { pattern: /^RO_(PY|PA)_/i, country: 'PY', label: 'Paraguay' }, // ver advertencia abajo
+  { pattern: /^RO_(PY|PA)_/i, country: 'PY', label: 'Paraguay' },
   { pattern: /^RO_UY_/i, country: 'UY', label: 'Uruguay' },
   { pattern: /^RO_US_/i, country: 'US', label: 'Estados Unidos' },
   { pattern: /^RO_LATAM_/i, country: 'SIN_CLASIFICAR', label: 'LATAM (consolidado)' },
@@ -74,7 +71,6 @@ function stripAccents(input: string): string {
   // Reemplaza guiones bajos y guiones por espacios ANTES de quitar acentos,
   // porque en regex "_" cuenta como carácter de palabra: "pro_show" se lee
   // como una sola palabra continua y \bshow\b nunca encuentra el límite.
-  // Con el guion bajo convertido a espacio, "pro show" sí separa las palabras.
   const withSpaces = input.replace(/[_-]+/g, ' ');
   return withSpaces.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
 }
@@ -97,10 +93,17 @@ export function classifyCountry(campaignName: string): CountryMatch {
   return { country: 'SIN_CLASIFICAR', countryLabel: 'Sin clasificar', confidence: 'low' };
 }
 
-export type BusinessLine = 'Shows' | 'App' | 'Canal WA' | 'Campañas Temporada';
+export type BusinessLine = 'Shows' | 'App' | 'Canal WA' | 'BANDAI' | 'Campañas Temporada';
 
 export function classifyBusinessLine(campaignName: string): BusinessLine {
   const normalized = stripAccents(campaignName.toLowerCase());
+
+  // BANDAI: campañas de la alianza con ese cliente. Va PRIMERO para que una
+  // campaña con "bandai" en el nombre siempre quede en su pestaña propia,
+  // aunque además contenga otra palabra clave (show, app, etc.).
+  // Los ad sets de BANDAI que viven dentro de campañas SIN "bandai" en el
+  // nombre se asignan aparte, por nombre de ad set (ver lib/campaignOverrides.ts).
+  if (/\bbandai\b/.test(normalized)) return 'BANDAI';
 
   // Canal WA: WhatsApp channel growth campaigns.
   if (/canal\s*wa\b|whats\s*app|whatsapp|\bwhats\b/.test(normalized)) return 'Canal WA';
@@ -108,12 +111,12 @@ export function classifyBusinessLine(campaignName: string): BusinessLine {
   // App: "A Jugar con Plim Plim" install campaigns.
   if (/nueva\s*app|a jugar con plim plim|\bapp\b/.test(normalized)) return 'App';
 
-  // Shows: live event ticket sales campaigns.
-  if (/\bshow\b/.test(normalized)) return 'Shows';
+  // Shows: live event ticket sales campaigns. "shows?" acepta singular Y
+  // plural ("Show" o "Shows").
+  if (/\bshows?\b/.test(normalized)) return 'Shows';
 
   // Todo lo demás es contenido de temporada/oportunista: Halloween, Navidad,
   // Latin Grammys, eventos puntuales, saludos, interacción de página, etc.
-  // Se agrupa aquí en vez de forzarlo a Shows/App/Canal WA.
   return 'Campañas Temporada';
 }
 
