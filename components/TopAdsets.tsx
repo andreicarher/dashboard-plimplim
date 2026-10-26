@@ -35,10 +35,34 @@ function fmtPct(n: number) {
   return `${n.toLocaleString('es-AR', { maximumFractionDigits: 2 })}%`;
 }
 
+// El CPC es un monto chico (decenas de pesos, centavos de dólar): con 0
+// decimales se vería "$ 24" y "USD $0", perdiendo la información. Por eso va
+// con 2 decimales en ARS y hasta 3 en USD.
+function fmtCpcArs(n: number) {
+  return n.toLocaleString('es-AR', {
+    style: 'currency',
+    currency: 'ARS',
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  });
+}
+function fmtCpcUsd(n: number) {
+  return n.toLocaleString('en-US', {
+    style: 'currency',
+    currency: 'USD',
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 3,
+  });
+}
+
 interface TopAdsetsProps {
   rows: AdRow[];
   title?: string;
   limit?: number;
+  /** Tipo de cambio ARS→USD, para mostrar el CPC en USD debajo del valor en ARS. */
+  arsToUsd?: number | null;
+  /** Muestra la columna CPC (gasto / clicks de ese anuncio). */
+  showCpc?: boolean;
 }
 
 /**
@@ -48,7 +72,13 @@ interface TopAdsetsProps {
  * estén los tres en ACTIVE — si cualquiera está pausado, el anuncio no se está
  * entregando en la práctica, así que cuenta como "pausado" a efectos de este filtro.
  */
-export default function TopAdsets({ rows, title = 'Mejores anuncios', limit = 10 }: TopAdsetsProps) {
+export default function TopAdsets({
+  rows,
+  title = 'Mejores anuncios',
+  limit = 10,
+  arsToUsd = null,
+  showCpc = false,
+}: TopAdsetsProps) {
   const MIN_IMPRESSIONS = 1000;
 
   const [campaignFilter, setCampaignFilter] = useState('');
@@ -148,6 +178,7 @@ export default function TopAdsets({ rows, title = 'Mejores anuncios', limit = 10
                 <th className="px-4 py-3 font-medium whitespace-nowrap">Estado</th>
                 <th className="px-4 py-3 font-medium whitespace-nowrap">País / Ciudad</th>
                 <th className="px-4 py-3 font-medium text-right whitespace-nowrap">CTR</th>
+                {showCpc && <th className="px-4 py-3 font-medium text-right whitespace-nowrap">CPC</th>}
                 <th className="px-4 py-3 font-medium text-right whitespace-nowrap">Inversión</th>
                 <th className="px-4 py-3 font-medium text-right whitespace-nowrap">Impresiones</th>
                 <th className="px-4 py-3 font-medium text-right whitespace-nowrap">Visitas a la página</th>
@@ -177,6 +208,22 @@ export default function TopAdsets({ rows, title = 'Mejores anuncios', limit = 10
                   <td className="px-4 py-3 text-right font-mono font-semibold text-teal">
                     {fmtPct(r.ctr)}
                   </td>
+                  {showCpc && (
+                    <td className="px-4 py-3 text-right font-mono whitespace-nowrap">
+                      {r.clicks > 0 ? (
+                        <div className="flex flex-col items-end">
+                          <span>{fmtCpcArs(r.spend / r.clicks)}</span>
+                          {arsToUsd && (
+                            <span className="text-[10px] text-muted font-normal">
+                              ≈ USD {fmtCpcUsd((r.spend / r.clicks) * arsToUsd)}
+                            </span>
+                          )}
+                        </div>
+                      ) : (
+                        <span className="text-muted">—</span>
+                      )}
+                    </td>
+                  )}
                   <td className="px-4 py-3 text-right font-mono">{fmtArs(r.spend)}</td>
                   <td className="px-4 py-3 text-right font-mono">{fmtInt(r.impressions)}</td>
                   <td className="px-4 py-3 text-right font-mono">{fmtInt(r.landingPageViews)}</td>
