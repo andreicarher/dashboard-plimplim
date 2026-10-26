@@ -25,7 +25,50 @@ function fmtPct(n: number) {
   return `${n.toLocaleString('es-AR', { maximumFractionDigits: 2 })}%`;
 }
 
-export default function CountryTable({ rows, arsToUsd }: { rows: RowData[]; arsToUsd: number | null }) {
+// El CPC es un monto chico (decenas de pesos, centavos de dólar): con los
+// decimales que usan las demás métricas de costo se vería "$ 24" y "USD $0",
+// perdiendo toda la información. Por eso acá va con 2 decimales en ARS y hasta
+// 3 en USD.
+function fmtCpcArs(n: number) {
+  return n.toLocaleString('es-AR', {
+    style: 'currency',
+    currency: 'ARS',
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  });
+}
+function fmtCpcUsd(n: number) {
+  return n.toLocaleString('en-US', {
+    style: 'currency',
+    currency: 'USD',
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 3,
+  });
+}
+
+/** CPC = gasto total / clicks totales (calculado sobre las sumas, nunca promediando CPCs). */
+function CpcCell({ spend, clicks, arsToUsd }: { spend: number; clicks: number; arsToUsd: number | null }) {
+  if (clicks <= 0) return <span className="text-muted">—</span>;
+  const cpc = spend / clicks;
+  return (
+    <div className="flex flex-col items-end">
+      <span>{fmtCpcArs(cpc)}</span>
+      {arsToUsd && (
+        <span className="text-[10px] text-muted font-normal">≈ USD {fmtCpcUsd(cpc * arsToUsd)}</span>
+      )}
+    </div>
+  );
+}
+
+export default function CountryTable({
+  rows,
+  arsToUsd,
+  showCpc = false,
+}: {
+  rows: RowData[];
+  arsToUsd: number | null;
+  showCpc?: boolean;
+}) {
   const hasAnyPurchases = rows.some((r) => r.purchases > 0);
 
   return (
@@ -46,6 +89,7 @@ export default function CountryTable({ rows, arsToUsd }: { rows: RowData[]; arsT
               <th className="px-4 py-3 font-medium text-right whitespace-nowrap">Impresiones</th>
               <th className="px-4 py-3 font-medium text-right whitespace-nowrap">Clicks</th>
               <th className="px-4 py-3 font-medium text-right whitespace-nowrap">CTR</th>
+              {showCpc && <th className="px-4 py-3 font-medium text-right whitespace-nowrap">CPC</th>}
               <th className="px-4 py-3 font-medium text-right whitespace-nowrap">Landing page views</th>
               <th className="px-4 py-3 font-medium text-right whitespace-nowrap">Compras</th>
               <th className="px-4 py-3 font-medium text-right whitespace-nowrap">Valor de compras</th>
@@ -70,6 +114,11 @@ export default function CountryTable({ rows, arsToUsd }: { rows: RowData[]; arsT
                   <td className="px-4 py-3 text-right font-mono">{fmtInt(r.impressions)}</td>
                   <td className="px-4 py-3 text-right font-mono">{fmtInt(r.clicks)}</td>
                   <td className="px-4 py-3 text-right font-mono">{fmtPct(ctr)}</td>
+                  {showCpc && (
+                    <td className="px-4 py-3 text-right font-mono whitespace-nowrap">
+                      <CpcCell spend={r.spend} clicks={r.clicks} arsToUsd={arsToUsd} />
+                    </td>
+                  )}
                   <td className="px-4 py-3 text-right font-mono">{fmtInt(r.landingPageViews)}</td>
                   <td className="px-4 py-3 text-right font-mono">{fmtInt(r.purchases)}</td>
                   <td className="px-4 py-3 text-right font-mono whitespace-nowrap">
