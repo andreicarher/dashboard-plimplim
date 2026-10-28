@@ -782,6 +782,8 @@ export default function Dashboard() {
               <TopAdsets
                 rows={filteredAdRows}
                 title={`Mejores anuncios — ${activeNav}`}
+                arsToUsd={arsToUsd}
+                showCpc={activeNav === 'Canal WA'}
               />
             )}
 
@@ -825,7 +827,7 @@ export default function Dashboard() {
 
             <section>
               <h2 className="text-sm font-semibold text-ink mb-4">Detalle por país</h2>
-              <CountryTable rows={byCountry} arsToUsd={arsToUsd} />
+              <CountryTable rows={byCountry} arsToUsd={arsToUsd} showCpc={activeNav === 'Canal WA'} />
             </section>
           </>
         )}
