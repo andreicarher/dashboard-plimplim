@@ -61,7 +61,7 @@ interface TopAdsetsProps {
   limit?: number;
   /** Tipo de cambio ARS→USD, para mostrar el CPC en USD debajo del valor en ARS. */
   arsToUsd?: number | null;
-  /** Muestra la columna CPC (gasto / clicks de ese anuncio). */
+  /** Muestra las columnas Clicks y CPC (CPC = inversión / clicks de ese anuncio). */
   showCpc?: boolean;
 }
 
@@ -178,6 +178,7 @@ export default function TopAdsets({
                 <th className="px-4 py-3 font-medium whitespace-nowrap">Estado</th>
                 <th className="px-4 py-3 font-medium whitespace-nowrap">País / Ciudad</th>
                 <th className="px-4 py-3 font-medium text-right whitespace-nowrap">CTR</th>
+                {showCpc && <th className="px-4 py-3 font-medium text-right whitespace-nowrap">Clicks</th>}
                 {showCpc && <th className="px-4 py-3 font-medium text-right whitespace-nowrap">CPC</th>}
                 <th className="px-4 py-3 font-medium text-right whitespace-nowrap">Inversión</th>
                 <th className="px-4 py-3 font-medium text-right whitespace-nowrap">Impresiones</th>
@@ -208,6 +209,9 @@ export default function TopAdsets({
                   <td className="px-4 py-3 text-right font-mono font-semibold text-teal">
                     {fmtPct(r.ctr)}
                   </td>
+                  {showCpc && (
+                    <td className="px-4 py-3 text-right font-mono">{fmtInt(r.clicks)}</td>
+                  )}
                   {showCpc && (
                     <td className="px-4 py-3 text-right font-mono whitespace-nowrap">
                       {r.clicks > 0 ? (
