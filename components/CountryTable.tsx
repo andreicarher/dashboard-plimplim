@@ -88,8 +88,8 @@ export default function CountryTable({
               <th className="px-4 py-3 font-medium text-right whitespace-nowrap">Alcance</th>
               <th className="px-4 py-3 font-medium text-right whitespace-nowrap">Impresiones</th>
               <th className="px-4 py-3 font-medium text-right whitespace-nowrap">Clicks</th>
-              <th className="px-4 py-3 font-medium text-right whitespace-nowrap">CTR</th>
               {showCpc && <th className="px-4 py-3 font-medium text-right whitespace-nowrap">CPC</th>}
+              <th className="px-4 py-3 font-medium text-right whitespace-nowrap">CTR</th>
               <th className="px-4 py-3 font-medium text-right whitespace-nowrap">Landing page views</th>
               <th className="px-4 py-3 font-medium text-right whitespace-nowrap">Compras</th>
               <th className="px-4 py-3 font-medium text-right whitespace-nowrap">Valor de compras</th>
@@ -113,12 +113,12 @@ export default function CountryTable({
                   <td className="px-4 py-3 text-right font-mono">{fmtInt(r.reach)}</td>
                   <td className="px-4 py-3 text-right font-mono">{fmtInt(r.impressions)}</td>
                   <td className="px-4 py-3 text-right font-mono">{fmtInt(r.clicks)}</td>
-                  <td className="px-4 py-3 text-right font-mono">{fmtPct(ctr)}</td>
                   {showCpc && (
                     <td className="px-4 py-3 text-right font-mono whitespace-nowrap">
                       <CpcCell spend={r.spend} clicks={r.clicks} arsToUsd={arsToUsd} />
                     </td>
                   )}
+                  <td className="px-4 py-3 text-right font-mono">{fmtPct(ctr)}</td>
                   <td className="px-4 py-3 text-right font-mono">{fmtInt(r.landingPageViews)}</td>
                   <td className="px-4 py-3 text-right font-mono">{fmtInt(r.purchases)}</td>
                   <td className="px-4 py-3 text-right font-mono whitespace-nowrap">
